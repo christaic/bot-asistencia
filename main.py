@@ -25,7 +25,6 @@ if not os.path.exists(NOMBRE_ARCHIVO_LOCAL):
 import json
 from google.auth.transport.requests import Request
 
-# ✅ Carga desde archivo secreto (no variable de entorno)
 with open("/etc/secrets/GOOGLE_CREDENTIALS_JSON") as f:
     credentials_dict = json.load(f)
 
@@ -37,7 +36,13 @@ service = build('drive', 'v3', credentials=credentials)
 # === BUSCAR LA CARPETA DE DESTINO ===
 def buscar_id_carpeta(nombre_carpeta):
     query = f"name = '{nombre_carpeta}' and mimeType = 'application/vnd.google-apps.folder' and trashed = false"
-    resultados = service.files().list(q=query, spaces='drive', fields="files(id, name)").execute()
+    resultados = service.files().list(
+        q=query,
+        spaces='drive',
+        fields="files(id, name)",
+        supportsAllDrives=True,
+        includeItemsFromAllDrives=True
+    ).execute()
     archivos = resultados.get('files', [])
     if archivos:
         return archivos[0]['id']
@@ -57,7 +62,8 @@ media = MediaFileUpload(NOMBRE_ARCHIVO_LOCAL, mimetype='application/vnd.openxmlf
 archivo = service.files().create(
     body=archivo_metadata,
     media_body=media,
-    fields='id'
+    fields='id',
+    supportsAllDrives=True
 ).execute()
 
 print(f"✅ Archivo subido correctamente. ID: {archivo.get('id')}")
