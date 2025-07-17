@@ -8,9 +8,8 @@ from googleapiclient.http import MediaFileUpload
 # === CONFIGURACIÓN ===
 NOMBRE_ARCHIVO_LOCAL = 'reporte_demo.xlsx'
 NOMBRE_ARCHIVO_DRIVE = 'REPORTE_SUBIDO_DESDE_RENDER.xlsx'
-NOMBRE_CARPETA_DRIVE = 'REPORTE_ETIQUETADO'  # Debe coincidir con la carpeta compartida
+NOMBRE_CARPETA_DRIVE = 'REPORTE_ETIQUETADO'
 SCOPES = ['https://www.googleapis.com/auth/drive']
-CREDENTIALS_JSON = os.getenv("GOOGLE_CREDENTIALS_JSON")  # Guardado como variable de entorno
 
 # === CREACIÓN DEL ARCHIVO EXCEL SI NO EXISTE ===
 from openpyxl import Workbook
@@ -26,7 +25,10 @@ if not os.path.exists(NOMBRE_ARCHIVO_LOCAL):
 import json
 from google.auth.transport.requests import Request
 
-credentials_dict = json.loads(CREDENTIALS_JSON)
+# ✅ Carga desde archivo secreto (no variable de entorno)
+with open("/etc/secrets/GOOGLE_CREDENTIALS_JSON") as f:
+    credentials_dict = json.load(f)
+
 credentials = service_account.Credentials.from_service_account_info(
     credentials_dict, scopes=SCOPES)
 
