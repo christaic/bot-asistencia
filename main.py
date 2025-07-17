@@ -33,24 +33,34 @@ credentials = service_account.Credentials.from_service_account_info(
 
 service = build('drive', 'v3', credentials=credentials)
 
-# === BUSCAR LA CARPETA DE DESTINO ===
+# === CREAR CARPETA SI NO EXISTE (opción A) ===
 def buscar_id_carpeta(nombre_carpeta):
     query = f"name = '{nombre_carpeta}' and mimeType = 'application/vnd.google-apps.folder' and trashed = false"
     resultados = service.files().list(
         q=query,
         spaces='drive',
-        fields="files(id, name)",
-        supportsAllDrives=True,
-        includeItemsFromAllDrives=True
+        fields="files(id, name)"
     ).execute()
     archivos = resultados.get('files', [])
     if archivos:
         return archivos[0]['id']
     return None
 
+def crear_carpeta(nombre_carpeta):
+    carpeta_metadata = {
+        'name': nombre_carpeta,
+        'mimeType': 'application/vnd.google-apps.folder'
+    }
+    carpeta = service.files().create(
+        body=carpeta_metadata,
+        fields='id'
+    ).execute()
+    return carpeta['id']
+
 carpeta_id = buscar_id_carpeta(NOMBRE_CARPETA_DRIVE)
 if not carpeta_id:
-    raise Exception("❌ Carpeta compartida no encontrada en Drive. Verifica el nombre y que esté compartida.")
+    print("🔧 Carpeta no encontrada. Creando nueva...")
+    carpeta_id = crear_carpeta(NOMBRE_CARPETA_DRIVE)
 
 # === SUBIR ARCHIVO .XLSX ===
 archivo_metadata = {
@@ -62,8 +72,7 @@ media = MediaFileUpload(NOMBRE_ARCHIVO_LOCAL, mimetype='application/vnd.openxmlf
 archivo = service.files().create(
     body=archivo_metadata,
     media_body=media,
-    fields='id',
-    supportsAllDrives=True
+    fields='id'
 ).execute()
 
 print(f"✅ Archivo subido correctamente. ID: {archivo.get('id')}")
