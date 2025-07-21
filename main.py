@@ -22,7 +22,7 @@ BOT_TOKEN = "8105661196:AAE43P8yPbgJZau38HLUjbTCdTxckJFAnhs"  # Token del bot
 NOMBRE_CARPETA_DRIVE = "ASISTENCIA_BOT"  # Carpeta principal
 DRIVE_ID = "0AOy_EhsaSY_HUk9PVA"  # ID de la unidad compartida
 
-# Carga de credenciales
+# Carga de credenciales desde variable de entorno
 CREDENTIALS_JSON = os.environ["GOOGLE_CREDENTIALS_JSON"]
 
 # -------------------- LOGGING --------------------
@@ -30,7 +30,6 @@ logging.basicConfig(
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s", level=logging.INFO
 )
 logger = logging.getLogger(__name__)
-
 
 # -------------------- GOOGLE DRIVE SERVICE --------------------
 def get_drive_service():
@@ -41,36 +40,51 @@ def get_drive_service():
     )
     return build("drive", "v3", credentials=creds)
 
-# -------------------- BOT INFO --------------------
-BOT_USERNAME = None
+drive_service = get_drive_service()
 
-async def init_bot_info(app):
-    global BOT_USERNAME
-    bot_info = await app.bot.get_me()
-    BOT_USERNAME = f"@{bot_info.username}"
-    logger.info(f"Bot iniciado como {BOT_USERNAME}")
+def get_or_create_main_folder():
+    """Busca la carpeta principal en la unidad compartida. Si no existe, la crea."""
+    query = f"name='{NOMBRE_CARPETA_DRIVE}' and '{DRIVE_ID}' in parents and trashed=false"
+    results = drive_service.files().list(
+        q=query,
+        fields="files(id, name)",
+        supportsAllDrives=True,
+        includeItemsFromAllDrives=True
+    ).execute()
+    files = results.get("files", [])
+    if files:
+        return files[0]["id"]
 
-def mensaje_es_para_bot(update: Update):
-    mensaje = update.message
-    if not mensaje:
-        return False
-    # Mención directa
-    if BOT_USERNAME and BOT_USERNAME in (mensaje.text or ""):
-        return True
-    # Respuesta al bot
-    if mensaje.reply_to_message and mensaje.reply_to_message.from_user.username == BOT_USERNAME.strip("@"):
-        return True
-    return False
+    # Crear carpeta si no existe
+    metadata = {
+        "name": NOMBRE_CARPETA_DRIVE,
+        "mimeType": "application/vnd.google-apps.folder",
+        "parents": [DRIVE_ID]
+    }
+    folder = drive_service.files().create(
+        body=metadata,
+        fields="id",
+        supportsAllDrives=True
+    ).execute()
+    return folder["id"]
+
+# ID de la carpeta principal
+MAIN_FOLDER_ID = get_or_create_main_folder()
 
 # -------------------- FUNCIONES DE GOOGLE DRIVE --------------------
 def buscar_archivo_en_drive(nombre_archivo):
     query = f"name='{nombre_archivo}' and '{MAIN_FOLDER_ID}' in parents and trashed=false"
-    results = drive_service.files().list(q=query, fields="files(id, name)").execute()
+    results = drive_service.files().list(
+        q=query,
+        fields="files(id, name)",
+        supportsAllDrives=True,
+        includeItemsFromAllDrives=True
+    ).execute()
     files = results.get("files", [])
     return files[0] if files else None
 
 def descargar_excel(file_id):
-    request = drive_service.files().get_media(fileId=file_id)
+    request = drive_service.files().get_media(fileId=file_id, supportsAllDrives=True)
     fh = io.BytesIO()
     downloader = MediaIoBaseDownload(fh, request)
     done = False
@@ -84,7 +98,7 @@ def subir_excel(file_id, df):
     df.to_excel(buffer, index=False)
     buffer.seek(0)
     media = MediaIoBaseUpload(buffer, mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
-    drive_service.files().update(fileId=file_id, media_body=media).execute()
+    drive_service.files().update(fileId=file_id, media_body=media, supportsAllDrives=True).execute()
 
 def crear_o_actualizar_excel(nombre_grupo, data):
     nombre_archivo = f"{nombre_grupo}.xlsx"
@@ -100,7 +114,12 @@ def crear_o_actualizar_excel(nombre_grupo, data):
         buffer.seek(0)
         file_metadata = {"name": nombre_archivo, "parents": [MAIN_FOLDER_ID]}
         media = MediaIoBaseUpload(buffer, mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
-        drive_service.files().create(body=file_metadata, media_body=media, fields="id").execute()
+        drive_service.files().create(
+            body=file_metadata,
+            media_body=media,
+            fields="id",
+            supportsAllDrives=True
+        ).execute()
 
 # -------------------- ESTRUCTURA DE FILA --------------------
 def generar_base_data(cuadrilla, tipo_trabajo):
