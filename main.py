@@ -122,6 +122,16 @@ def generar_base_data(cuadrilla, tipo_trabajo):
 # -------------------- ESTADOS TEMPORALES --------------------
 user_data = {}
 
+# -------------------- VALIDACIÓN DE CONTENIDO --------------------
+async def validar_contenido(update: Update, tipo: str):
+    if tipo == "texto" and not update.message.text:
+        await update.message.reply_text("⚠️ Debes enviar el *nombre de la cuadrilla* en texto.")
+        return False
+    if tipo == "foto" and not update.message.photo:
+        await update.message.reply_text("⚠️ Debes enviar una *foto*, no texto.")
+        return False
+    return True
+
 # -------------------- COMANDOS DEL BOT --------------------
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not mensaje_es_para_bot(update):
@@ -132,7 +142,7 @@ async def ingreso(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not mensaje_es_para_bot(update):
         return
     chat_id = update.effective_chat.id
-    user_data[chat_id] = {}
+    user_data[chat_id] = {"paso": 0}
     await update.message.reply_text(
         "✍️ *Escribe el nombre de tu cuadrilla*\n\n"
         "*Ejemplo:*\n"
@@ -142,19 +152,44 @@ async def ingreso(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
 
 async def nombre_cuadrilla(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if not mensaje_es_para_bot(update):
-        return
     chat_id = update.effective_chat.id
-    if chat_id not in user_data or "cuadrilla" in user_data[chat_id]:
+    if chat_id not in user_data or user_data[chat_id].get("paso") != 0:
+        return
+    if not await validar_contenido(update, "texto"):
         return
     user_data[chat_id]["cuadrilla"] = update.message.text
     keyboard = [
-        [InlineKeyboardButton("📌 Ordenamiento", callback_data="tipo_ordenamiento")],
-        [InlineKeyboardButton("🏷 Etiquetado", callback_data="tipo_etiquetado")],
+        [InlineKeyboardButton("✅ Confirma el nombre de tu cuadrilla", callback_data="confirmar_nombre")],
+        [InlineKeyboardButton("✏️ Corregir nombre", callback_data="corregir_nombre")],
     ]
     await update.message.reply_text(
-        "Selecciona el tipo de trabajo:", reply_markup=InlineKeyboardMarkup(keyboard)
+        f"Has ingresado la cuadrilla:\n*{user_data[chat_id]['cuadrilla']}*\n\n¿Es correcto?",
+        parse_mode="Markdown",
+        reply_markup=InlineKeyboardMarkup(keyboard),
     )
+
+async def handle_nombre_cuadrilla(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    chat_id = query.message.chat.id
+    await query.answer()
+    if query.data == "confirmar_nombre":
+        keyboard = [
+            [InlineKeyboardButton("📌 Ordenamiento", callback_data="tipo_ordenamiento")],
+            [InlineKeyboardButton("🏷 Etiquetado", callback_data="tipo_etiquetado")],
+        ]
+        await query.edit_message_text(
+            "Selecciona el tipo de trabajo:",
+            reply_markup=InlineKeyboardMarkup(keyboard)
+        )
+    elif query.data == "corregir_nombre":
+        user_data[chat_id]["cuadrilla"] = ""
+        await query.edit_message_text(
+            "✍️ *Escribe el nombre de tu cuadrilla*\n\n"
+            "*Ejemplo:*\n"
+            "*T1: Juan Pérez*\n"
+            "*T2: José Flores*\n",
+            parse_mode="Markdown",
+        )
 
 async def handle_tipo_trabajo(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
@@ -162,56 +197,101 @@ async def handle_tipo_trabajo(update: Update, context: ContextTypes.DEFAULT_TYPE
     await query.answer()
     tipo = "Ordenamiento" if query.data == "tipo_ordenamiento" else "Etiquetado"
     user_data[chat_id]["tipo"] = tipo
+    user_data[chat_id]["paso"] = 1
     await query.edit_message_text(
-        f"Tipo de trabajo seleccionado: *{tipo}*\n\n📸 Envía ahora la foto de ingreso.",
+        f"Tipo de trabajo seleccionado: *{tipo}*\n\n📸 Ahora envia tu selfie de inicio.",
         parse_mode="Markdown",
     )
 
 async def foto_ingreso(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if not mensaje_es_para_bot(update):
-        return
     chat_id = update.effective_chat.id
-    if chat_id not in user_data or "tipo" not in user_data[chat_id]:
+    if chat_id not in user_data or user_data[chat_id].get("paso") != 1:
         return
+    if not await validar_contenido(update, "foto"):
+        return
+        
     hora_ingreso = datetime.now().strftime("%H:%M")
     user_data[chat_id]["hora_ingreso"] = hora_ingreso
     data = generar_base_data(user_data[chat_id]["cuadrilla"], user_data[chat_id]["tipo"])
     data["HORA INGRESO"] = hora_ingreso
     crear_o_actualizar_excel(update.effective_chat.title, data)
+
     keyboard = [
-        [InlineKeyboardButton("✅ ATS/PETAR Sí", callback_data="ats_si")],
-        [InlineKeyboardButton("❌ ATS/PETAR No", callback_data="ats_no")],
+        [InlineKeyboardButton("🔄 Repetir Selfie", callback_data="repetir_foto_inicio")],
+        [InlineKeyboardButton("📝📋 Continuar con ATS/PETAR", callback_data="continuar_ats")],
     ]
-    await update.message.reply_text(
-        "¿Realizaste ATS/PETAR?", reply_markup=InlineKeyboardMarkup(keyboard)
-    )
+    await update.message.reply_text("¿Es correcto el selfie de inicio?", reply_markup=InlineKeyboardMarkup(keyboard))
+
+async def manejar_repeticion_fotos(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    chat_id = query.message.chat.id
+    await query.answer()
+    if query.data == "repetir_foto_inicio":
+        user_data[chat_id]["paso"] = 1
+        await query.edit_message_text("📸 Envía nuevamente tu *selfie de inicio*.", parse_mode="Markdown")
+    elif query.data == "continuar_ats":
+        keyboard = [
+            [InlineKeyboardButton("✅ ATS/PETAR Sí", callback_data="ats_si")],
+            [InlineKeyboardButton("❌ ATS/PETAR No", callback_data="ats_no")],
+        ]
+        await query.edit_message_text("¿Realizaste ATS/PETAR?", reply_markup=InlineKeyboardMarkup(keyboard))
+    elif query.data == "repetir_foto_ats":
+        user_data[chat_id]["paso"] = 2
+        await query.edit_message_text("📸 Envía nuevamente la *foto del ATS/PETAR*.", parse_mode="Markdown")
+    elif query.data == "continuar_post_ats":
+        await query.edit_message_text(
+            "¡Excelente! 🎉 Ya estás listo para comenzar. **Escribe /start @VTetiquetado_bot** para iniciar tu jornada.",
+            parse_mode="Markdown",
+        )
 
 async def handle_ats_petar(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     chat_id = query.message.chat.id
     await query.answer()
-    respuesta = "Sí" if query.data == "ats_si" else "No"
-    user_data[chat_id]["ats_petar"] = respuesta
+
+    if query.data == "ats_si":
+        user_data[chat_id]["paso"] = 2
+        await query.edit_message_text(
+            "📸 Por favor, envía la *foto ATS/PETAR* para continuar.",
+            parse_mode="Markdown"
+        )
+        return
+
+    # Caso NO
+    respuesta = "No"
     nombre_grupo = query.message.chat.title
     archivo_drive = buscar_archivo_en_drive(f"{nombre_grupo}.xlsx")
     if archivo_drive:
         df = descargar_excel(archivo_drive["id"])
         df.at[df.index[-1], "ATS/PETAR"] = respuesta
         subir_excel(archivo_drive["id"], df)
-    if respuesta == "Sí":
-        await query.edit_message_text(
-            "¡Excelente! 🎉 Ya estás listo para empezar. **Etiqueta a @VTetiquetado_bot** para comenzar actividades.",
-            parse_mode="Markdown",
-        )
-    else:
-        await query.edit_message_text(
+    await query.edit_message_text(
             "🔔 *Recuerda enviar ATS al iniciar cada jornada.* 🔔\n\n"
-            "✅ Previenes accidentes\n"
-            "✅ Proteges tu vida y la de tu equipo\n\n"
-            "⚠️¡La seguridad empieza contigo!⚠️\n\n"
-            "**Etiqueta a @VTetiquetado_bot** para comenzar actividades.",
+            "✅ Previenes accidentes.\n"
+            "✅ Proteges tu vida y la de tu equipo.\n\n"
+            "⚠️¡La seguridad empieza contigo!⚠️",
             parse_mode="Markdown",
         )
+
+async def foto_ats(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    chat_id = update.effective_chat.id
+    if chat_id not in user_data or user_data[chat_id].get("paso") != 2:
+        return
+    if not await validar_contenido(update, "foto"):
+        return
+
+    nombre_grupo = update.effective_chat.title
+    archivo_drive = buscar_archivo_en_drive(f"{nombre_grupo}.xlsx")
+    if archivo_drive:
+        df = descargar_excel(archivo_drive["id"])
+        df.at[df.index[-1], "ATS/PETAR"] = "Sí"
+        subir_excel(archivo_drive["id"], df)
+
+    keyboard = [
+        [InlineKeyboardButton("🔄 Repetir Foto ATS/PETAR", callback_data="repetir_foto_ats")],
+        [InlineKeyboardButton("✅ Continuar", callback_data="continuar_post_ats")],
+    ]
+    await update.message.reply_text("¿Es correcta la foto ATS/PETAR?", reply_markup=InlineKeyboardMarkup(keyboard))
 
 async def breakout(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not mensaje_es_para_bot(update):
@@ -225,7 +305,7 @@ async def breakout(update: Update, context: ContextTypes.DEFAULT_TYPE):
     df = descargar_excel(archivo_drive["id"])
     df.at[df.index[-1], "HORA BREAK OUT"] = hora
     subir_excel(archivo_drive["id"], df)
-    await update.message.reply_text(f"☕ Salida a break registrado a las {hora}.")
+    await update.message.reply_text(f"☕ Salida a Break, registrado a las {hora}.")
 
 async def breakin(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not mensaje_es_para_bot(update):
@@ -239,14 +319,15 @@ async def breakin(update: Update, context: ContextTypes.DEFAULT_TYPE):
     df = descargar_excel(archivo_drive["id"])
     df.at[df.index[-1], "HORA BREAK IN"] = hora
     subir_excel(archivo_drive["id"], df)
-    await update.message.reply_text(f"🚀 Regreso de break registrado a las {hora}.")
+    await update.message.reply_text(f"🚀 Regreso de Break, registrado a las {hora}. **Escribe /start @VTetiquetado_bot** para continuar.")
 
 async def salida(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    chat_id = update.effective_chat.id
     if not mensaje_es_para_bot(update):
         return
-    if not update.message.photo:
-        await update.message.reply_text("📸 Por favor, envía tu foto de salida.")
+    if not await validar_contenido(update, "foto"):
         return
+    user_data[chat_id]["paso"] = 3
     hora_salida = datetime.now().strftime("%H:%M")
     nombre_grupo = update.effective_chat.title
     archivo_drive = buscar_archivo_en_drive(f"{nombre_grupo}.xlsx")
@@ -258,19 +339,33 @@ async def salida(update: Update, context: ContextTypes.DEFAULT_TYPE):
     try:
         h_ingreso = datetime.strptime(df.at[df.index[-1], "HORA INGRESO"], "%H:%M")
         h_salida = datetime.strptime(hora_salida, "%H:%M")
+        h_break = 0
         if pd.notnull(df.at[df.index[-1], "HORA BREAK OUT"]) and pd.notnull(df.at[df.index[-1], "HORA BREAK IN"]):
             h_breakout = datetime.strptime(df.at[df.index[-1], "HORA BREAK OUT"], "%H:%M")
             h_breakin = datetime.strptime(df.at[df.index[-1], "HORA BREAK IN"], "%H:%M")
             h_break = (h_breakin - h_breakout).seconds / 3600
-        else:
-            h_break = 0
         horas_lab = ((h_salida - h_ingreso).seconds / 3600) - h_break
         df.at[df.index[-1], "HORAS BREAK"] = f"{h_break:.2f}"
         df.at[df.index[-1], "HORAS LABORADAS"] = f"{horas_lab:.2f}"
     except Exception as e:
         logger.error(f"Error calculando horas: {e}")
     subir_excel(archivo_drive["id"], df)
-    await update.message.reply_text(f"👏💪 Salida registrada a las {hora_salida}. *¡Buen trabajo!*. Gracias, hasta mañana👏💪")
+    keyboard = [
+        [InlineKeyboardButton("🔄 Repetir Selfie de Salida", callback_data="repetir_foto_salida")],
+        [InlineKeyboardButton("✅ Finalizar Jornada ", callback_data="finalizar_salida")],
+    ]
+    await update.message.reply_text("¿Está correcta la foto de salida?", reply_markup=InlineKeyboardMarkup(keyboard))
+
+
+async def handle_finalizar_salida(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    await query.answer()
+    await query.edit_message_text(
+        "💪 *¡Buen trabajo! Hasta mañana.*\n\n"
+        "👏 *Gracias por su apoyo jornada de hoy*\n\n"
+        "🫡 ¡Cambio y Fuera! 🫡",
+        parse_mode="Markdown"
+    )
 
 # -------------------- MAIN --------------------
 def main():
@@ -283,8 +378,12 @@ def main():
     app.add_handler(CommandHandler("salida", salida))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, nombre_cuadrilla))
     app.add_handler(MessageHandler(filters.PHOTO, foto_ingreso))
+    app.add_handler(MessageHandler(filters.PHOTO, foto_ats))
+    app.add_handler(CallbackQueryHandler(handle_nombre_cuadrilla, pattern="^(confirmar_nombre|corregir_nombre)$"))
     app.add_handler(CallbackQueryHandler(handle_tipo_trabajo, pattern="^tipo_"))
+    app.add_handler(CallbackQueryHandler(manejar_repeticion_fotos, pattern="^(repetir_foto_|continuar_ats|continuar_post_ats)$"))
     app.add_handler(CallbackQueryHandler(handle_ats_petar, pattern="^ats_"))
+    app.add_handler(CallbackQueryHandler(handle_finalizar_salida, pattern="^finalizar_salida$"))
     print("Bot en ejecución...")
     app.run_polling()
 
