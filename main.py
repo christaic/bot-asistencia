@@ -190,7 +190,7 @@ async def ingreso(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "*Ejemplo:*\n"
         "*T1: Juan Pérez*\n"
         "*T2: José Flores*\n",
-        parse_mode="Markdown",
+        parse_mode="Markdown"
     )
 
 async def nombre_cuadrilla(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -230,7 +230,7 @@ async def handle_nombre_cuadrilla(update: Update, context: ContextTypes.DEFAULT_
             "*Ejemplo:*\n"
             "*T1: Juan Pérez*\n"
             "*T2: José Flores*\n",
-            parse_mode="Markdown",
+            parse_mode="Markdown"
         )
 
 async def handle_tipo_trabajo(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -242,7 +242,7 @@ async def handle_tipo_trabajo(update: Update, context: ContextTypes.DEFAULT_TYPE
     user_data[chat_id]["paso"] = 1
     await query.edit_message_text(
         f"Tipo de trabajo seleccionado: *{tipo}*\n\n📸 Ahora envia tu selfie de inicio.",
-        parse_mode="Markdown",
+        parse_mode="Markdown"
     )
 
 async def foto_ingreso(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -298,7 +298,7 @@ async def manejar_repeticion_fotos(update: Update, context: ContextTypes.DEFAULT
         await query.edit_message_text(
             "¡Excelente! 🎉 Ya estás listo para comenzar.\n\n"
             "**Escribe /start @VTetiquetado_bot** para iniciar tu jornada.",
-            parse_mode="Markdown",
+            parse_mode="Markdown"
         )
 
 # -------------------- ATS/PETAR --------------------
