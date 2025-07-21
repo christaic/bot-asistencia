@@ -17,16 +17,21 @@ from google.oauth2 import service_account
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaIoBaseUpload, MediaIoBaseDownload
 
+# -------------------- CONFIGURACIÓN --------------------
+BOT_TOKEN = "8105661196:AAE43P8yPbgJZau38HLUjbTCdTxckJFAnhs"  # Token del bot
+NOMBRE_CARPETA_DRIVE = "ASISTENCIA_BOT"  # Carpeta principal
+DRIVE_ID = "0AOy_EhsaSY_HUk9PVA"  # ID de la unidad compartida
+
+# Carga de credenciales
+with open("credentials.json", "r") as f:
+    CREDENTIALS_JSON = json.load(f)
+
 # -------------------- LOGGING --------------------
 logging.basicConfig(
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s", level=logging.INFO
 )
 logger = logging.getLogger(__name__)
 
-# -------------------- VARIABLES DE ENTORNO --------------------
-TOKEN = os.environ["TOKEN"]
-FOLDER_ID = os.environ["FOLDER_ID"]
-CREDENTIALS_JSON = os.environ["GOOGLE_CREDENTIALS_JSON"]
 
 # -------------------- GOOGLE DRIVE SERVICE --------------------
 def get_drive_service():
@@ -62,7 +67,7 @@ def mensaje_es_para_bot(update: Update):
 
 # -------------------- FUNCIONES DE GOOGLE DRIVE --------------------
 def buscar_archivo_en_drive(nombre_archivo):
-    query = f"name='{nombre_archivo}' and '{FOLDER_ID}' in parents and trashed=false"
+    query = f"name='{nombre_archivo}' and '{MAIN_FOLDER_ID}' in parents and trashed=false"
     results = drive_service.files().list(q=query, fields="files(id, name)").execute()
     files = results.get("files", [])
     return files[0] if files else None
@@ -96,7 +101,7 @@ def crear_o_actualizar_excel(nombre_grupo, data):
         buffer = io.BytesIO()
         df.to_excel(buffer, index=False)
         buffer.seek(0)
-        file_metadata = {"name": nombre_archivo, "parents": [FOLDER_ID]}
+        file_metadata = {"name": nombre_archivo, "parents": [MAIN_FOLDER_ID]}
         media = MediaIoBaseUpload(buffer, mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
         drive_service.files().create(body=file_metadata, media_body=media, fields="id").execute()
 
@@ -369,7 +374,7 @@ async def handle_finalizar_salida(update: Update, context: ContextTypes.DEFAULT_
 
 # -------------------- MAIN --------------------
 def main():
-    app = ApplicationBuilder().token(TOKEN).build()
+    app = ApplicationBuilder().token(BOT_TOKEN).build()
     app.post_init = init_bot_info
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CommandHandler("ingreso", ingreso))
