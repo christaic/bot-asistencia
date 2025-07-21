@@ -23,7 +23,7 @@ NOMBRE_CARPETA_DRIVE = "ASISTENCIA_BOT"  # Carpeta principal
 DRIVE_ID = "0AOy_EhsaSY_HUk9PVA"  # ID de la unidad compartida
 
 # Carga de credenciales
-CREDENTIALS_JSON = json.loads(os.environ["GOOGLE_CREDENTIALS_JSON"])
+CREDENTIALS_JSON = os.environ["GOOGLE_CREDENTIALS_JSON"]
 
 # -------------------- LOGGING --------------------
 logging.basicConfig(
@@ -40,8 +40,6 @@ def get_drive_service():
         scopes=["https://www.googleapis.com/auth/drive"]
     )
     return build("drive", "v3", credentials=creds)
-
-drive_service = get_drive_service()
 
 # -------------------- BOT INFO --------------------
 BOT_USERNAME = None
