@@ -270,37 +270,36 @@ async def manejar_repeticion_fotos(update: Update, context: ContextTypes.DEFAULT
     chat_id = query.message.chat.id
     await query.answer()
 
-    # Repetir foto de inicio
+    # --- SELFIE INICIO ---
     if query.data == "repetir_foto_inicio":
         user_data[chat_id]["paso"] = 1
-        await query.edit_message_text("📸 Envía nuevamente tu *selfie de inicio*.", parse_mode="Markdown")
+        await query.edit_message_text(
+            "📸 Envía nuevamente tu *selfie de inicio*.", parse_mode="Markdown"
+        )
 
-    # Preguntar si realizó ATS/PETAR
     elif query.data == "continuar_ats":
         keyboard = [
             [InlineKeyboardButton("✅ ATS/PETAR Sí", callback_data="ats_si")],
             [InlineKeyboardButton("❌ ATS/PETAR No", callback_data="ats_no")],
         ]
-        await query.edit_message_text("¿Realizaste ATS/PETAR?", reply_markup=InlineKeyboardMarkup(keyboard))
-
-    # Repetir foto de ATS/PETAR
-    elif query.data == "repetir_foto_ats":
-        user_data[chat_id]["paso"] = 2
-        await query.edit_message_text("📸 Envía nuevamente la *foto del ATS/PETAR*.", parse_mode="Markdown")
-
-    # Corregir y reenviar ATS/PETAR aunque haya marcado NO
-    elif query.data == "reenviar_ats":
-        user_data[chat_id]["paso"] = 2
-        await query.edit_message_text("📸 Envía la *foto del ATS/PETAR* para corregir.", parse_mode="Markdown")
-
-    # Confirmación de foto ATS/PETAR
-    elif query.data == "continuar_post_ats":
-        user_data[chat_id]["paso"] = 3  # Avanza al siguiente paso del flujo
         await query.edit_message_text(
-            "¡Excelente! 🎉 Ya estás listo para comenzar. **Escribe /start @VTetiquetado_bot** para iniciar tu jornada.",
-            parse_mode="Markdown",
+            "¿Realizaste ATS/PETAR?", reply_markup=InlineKeyboardMarkup(keyboard)
         )
 
+    # --- ATS/PETAR ---
+    elif query.data == "repetir_foto_ats":
+        user_data[chat_id]["paso"] = 2
+        await query.edit_message_text(
+            "📸 Envía nuevamente la *foto del ATS/PETAR*.", parse_mode="Markdown"
+        )
+
+    elif query.data == "continuar_post_ats":
+        user_data[chat_id]["paso"] = 3  # Avanza al siguiente paso (jornada lista)
+        await query.edit_message_text(
+            "¡Excelente! 🎉 Ya estás listo para comenzar.\n\n"
+            "**Escribe /start @VTetiquetado_bot** para iniciar tu jornada.",
+            parse_mode="Markdown",
+        )
 
 # -------------------- ATS/PETAR --------------------
 async def handle_ats_petar(update: Update, context: ContextTypes.DEFAULT_TYPE):
