@@ -302,7 +302,7 @@ async def manejar_repeticion_fotos(update: Update, context: ContextTypes.DEFAULT
         user_data[chat_id]["paso"] = 3  # Marca como listo para salir
         await query.edit_message_text(
             "¡Excelente! 🎉 Ya estás listo para comenzar.\n\n"
-            "**Escribe /start @VTetiquetado_bot** para iniciar tu jornada.",
+            "*Escribe /start @VTetiquetado_bot* para iniciar tu jornada.",
             parse_mode="Markdown"
         )
 
