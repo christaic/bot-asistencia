@@ -24,7 +24,7 @@ logger = logging.getLogger(__name__)
 
 # -------------------- VARIABLES DE ENTORNO --------------------
 TOKEN = os.environ["TOKEN"]  # Token del bot
-FOLDER_ID = os.environ["0AOy_EhsaSY_HUk9PVA"]  # ID de la carpeta en Drive
+FOLDER_ID = os.environ["FOLDER_ID"]  # ID de la carpeta en Drive
 CREDENTIALS_JSON = os.environ["GOOGLE_CREDENTIALS_JSON"]
 
 # -------------------- CONFIGURAR CREDENCIALES --------------------
