@@ -23,8 +23,7 @@ NOMBRE_CARPETA_DRIVE = "ASISTENCIA_BOT"  # Carpeta principal
 DRIVE_ID = "0AOy_EhsaSY_HUk9PVA"  # ID de la unidad compartida
 
 # Carga de credenciales
-with open("credentials.json", "r") as f:
-    CREDENTIALS_JSON = json.load(f)
+CREDENTIALS_JSON = json.loads(os.environ["GOOGLE_CREDENTIALS_JSON"])
 
 # -------------------- LOGGING --------------------
 logging.basicConfig(
