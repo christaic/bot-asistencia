@@ -309,7 +309,8 @@ async def handle_ats_petar(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         return
 
-    # Caso NO: Guardar en el Excel y dar opción de corregir
+    # Caso NO
+    user_data[chat_id]["paso"] = 3  # Para que el bot sepa que se salta este paso
     if archivo_drive:
         df = descargar_excel(archivo_drive["id"])
         df.at[df.index[-1], "ATS/PETAR"] = "No"
@@ -328,7 +329,6 @@ async def handle_ats_petar(update: Update, context: ContextTypes.DEFAULT_TYPE):
         parse_mode="Markdown",
         reply_markup=InlineKeyboardMarkup(keyboard)
     )
-
 
 async def foto_ats(update: Update, context: ContextTypes.DEFAULT_TYPE):
     chat_id = update.effective_chat.id
@@ -351,7 +351,7 @@ async def foto_ats(update: Update, context: ContextTypes.DEFAULT_TYPE):
         [InlineKeyboardButton("✅ Continuar", callback_data="continuar_post_ats")],
     ]
     await update.message.reply_text(
-        "¿Es correcta la foto ATS/PETAR?",
+        "¿Es correcta la foto del ATS/PETAR?",
         reply_markup=InlineKeyboardMarkup(keyboard)
     )
 
