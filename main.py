@@ -437,6 +437,20 @@ async def handle_finalizar_salida(update: Update, context: ContextTypes.DEFAULT_
         parse_mode="Markdown"
     )
     
+async def manejar_fotos(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handler único para fotos, decide a qué paso pertenece."""
+    chat_id = update.effective_chat.id
+    paso = user_data.get(chat_id, {}).get("paso")
+
+    if paso == 1:
+        await foto_ingreso(update, context)
+    elif paso == 2:
+        await foto_ats(update, context)
+    elif paso == 3:
+        await salida(update, context)
+    else:
+        await update.message.reply_text("⚠️ No es momento de enviar una foto. Usa /ingreso para comenzar.")
+
 # -------------------- MAIN --------------------
 def main():
     app = ApplicationBuilder().token(BOT_TOKEN).build()
@@ -447,8 +461,7 @@ def main():
     app.add_handler(CommandHandler("breakin", breakin))
     app.add_handler(CommandHandler("salida", salida))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, nombre_cuadrilla))
-    app.add_handler(MessageHandler(filters.PHOTO, foto_ingreso))
-    app.add_handler(MessageHandler(filters.PHOTO, foto_ats))
+    app.add_handler(MessageHandler(filters.PHOTO, manejar_fotos))
     app.add_handler(CallbackQueryHandler(handle_nombre_cuadrilla, pattern="^(confirmar_nombre|corregir_nombre)$"))
     app.add_handler(CallbackQueryHandler(handle_tipo_trabajo, pattern="^tipo_"))
     app.add_handler(CallbackQueryHandler(manejar_repeticion_fotos, pattern="^(repetir_foto_|continuar_ats|continuar_post_ats|reenviar_ats)$"))
