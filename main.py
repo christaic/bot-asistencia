@@ -143,6 +143,27 @@ def generar_base_data(cuadrilla, tipo_trabajo):
 # -------------------- ESTADOS TEMPORALES --------------------
 user_data = {}
 
+# -------------------- BOT INFO --------------------
+BOT_USERNAME = None
+
+async def init_bot_info(app):
+    global BOT_USERNAME
+    bot_info = await app.bot.get_me()
+    BOT_USERNAME = f"@{bot_info.username}"
+    logger.info(f"Bot iniciado como {BOT_USERNAME}")
+
+def mensaje_es_para_bot(update: Update):
+    mensaje = update.message
+    if not mensaje:
+        return False
+    # Mención directa
+    if BOT_USERNAME and BOT_USERNAME in (mensaje.text or ""):
+        return True
+    # Respuesta al bot
+    if mensaje.reply_to_message and mensaje.reply_to_message.from_user.username == BOT_USERNAME.strip("@"):
+        return True
+    return False
+
 # -------------------- VALIDACIÓN DE CONTENIDO --------------------
 async def validar_contenido(update: Update, tipo: str):
     if tipo == "texto" and not update.message.text:
@@ -387,7 +408,7 @@ async def handle_finalizar_salida(update: Update, context: ContextTypes.DEFAULT_
         "🫡 ¡Cambio y Fuera! 🫡",
         parse_mode="Markdown"
     )
-
+    
 # -------------------- MAIN --------------------
 def main():
     app = ApplicationBuilder().token(BOT_TOKEN).build()
