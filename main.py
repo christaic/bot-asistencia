@@ -280,50 +280,67 @@ async def manejar_repeticion_fotos(update: Update, context: ContextTypes.DEFAULT
     elif query.data == "repetir_foto_ats":
         user_data[chat_id]["paso"] = 2
         await query.edit_message_text("📸 Envía nuevamente la *foto del ATS/PETAR*.", parse_mode="Markdown")
+    elif query.data == "reenviar_ats":
+        user_data[chat_id]["paso"] = 2
+        await query.edit_message_text(
+            "📸 Envía la *foto del ATS/PETAR* para corregir.",
+            parse_mode="Markdown"
+        )
     elif query.data == "continuar_post_ats":
         await query.edit_message_text(
             "¡Excelente! 🎉 Ya estás listo para comenzar. **Escribe /start @VTetiquetado_bot** para iniciar tu jornada.",
             parse_mode="Markdown",
         )
 
+
 async def handle_ats_petar(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     chat_id = query.message.chat.id
     await query.answer()
 
+    nombre_grupo = query.message.chat.title
+    archivo_drive = buscar_archivo_en_drive(f"{nombre_grupo}.xlsx")
+
     if query.data == "ats_si":
         user_data[chat_id]["paso"] = 2
         await query.edit_message_text(
-            "📸 Por favor, envía la *foto ATS/PETAR* para continuar.",
+            "📸 *Por favor, envía la foto del ATS/PETAR para continuar.*",
             parse_mode="Markdown"
         )
         return
 
-    # Caso NO
-    respuesta = "No"
-    nombre_grupo = query.message.chat.title
-    archivo_drive = buscar_archivo_en_drive(f"{nombre_grupo}.xlsx")
+    # Caso NO: Guardar en el Excel y dar opción de corregir
     if archivo_drive:
         df = descargar_excel(archivo_drive["id"])
-        df.at[df.index[-1], "ATS/PETAR"] = respuesta
+        df.at[df.index[-1], "ATS/PETAR"] = "No"
         subir_excel(archivo_drive["id"], df)
+
+    keyboard = [
+        [InlineKeyboardButton("📸 Enviar foto de ATS/PETAR de todas formas", callback_data="reenviar_ats")]
+    ]
+
     await query.edit_message_text(
-            "🔔 *Recuerda enviar ATS al iniciar cada jornada.* 🔔\n\n"
-            "✅ Previenes accidentes.\n"
-            "✅ Proteges tu vida y la de tu equipo.\n\n"
-            "⚠️¡La seguridad empieza contigo!⚠️",
-            parse_mode="Markdown",
-        )
+        "⚠️ *Recuerda enviar ATS al iniciar cada jornada.* ⚠️\n\n"
+        "✅ Previenes accidentes.\n"
+        "✅ Proteges tu vida y la de tu equipo.\n\n"
+        "¡La seguridad empieza contigo!\n"
+        "**Escribe /start @VTetiquetado_bot** para iniciar tu jornada.",
+        parse_mode="Markdown",
+        reply_markup=InlineKeyboardMarkup(keyboard)
+    )
+
 
 async def foto_ats(update: Update, context: ContextTypes.DEFAULT_TYPE):
     chat_id = update.effective_chat.id
     if chat_id not in user_data or user_data[chat_id].get("paso") != 2:
         return
+
     if not await validar_contenido(update, "foto"):
         return
 
     nombre_grupo = update.effective_chat.title
     archivo_drive = buscar_archivo_en_drive(f"{nombre_grupo}.xlsx")
+
     if archivo_drive:
         df = descargar_excel(archivo_drive["id"])
         df.at[df.index[-1], "ATS/PETAR"] = "Sí"
@@ -333,7 +350,10 @@ async def foto_ats(update: Update, context: ContextTypes.DEFAULT_TYPE):
         [InlineKeyboardButton("🔄 Repetir Foto ATS/PETAR", callback_data="repetir_foto_ats")],
         [InlineKeyboardButton("✅ Continuar", callback_data="continuar_post_ats")],
     ]
-    await update.message.reply_text("¿Es correcta la foto ATS/PETAR?", reply_markup=InlineKeyboardMarkup(keyboard))
+    await update.message.reply_text(
+        "¿Es correcta la foto ATS/PETAR?",
+        reply_markup=InlineKeyboardMarkup(keyboard)
+    )
 
 async def breakout(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not mensaje_es_para_bot(update):
