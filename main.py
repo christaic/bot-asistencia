@@ -288,13 +288,18 @@ async def manejar_repeticion_fotos(update: Update, context: ContextTypes.DEFAULT
 
     # --- ATS/PETAR ---
     elif query.data == "repetir_foto_ats":
-        user_data[chat_id]["paso"] = 2
+        keyboard = [
+            [InlineKeyboardButton("✅ ATS/PETAR Sí", callback_data="ats_si")],
+            [InlineKeyboardButton("❌ ATS/PETAR No", callback_data="ats_no")],
+        ]
         await query.edit_message_text(
-            "📸 Envía nuevamente la *foto del ATS/PETAR*.", parse_mode="Markdown"
+            "¿Realizaste ATS/PETAR?",
+            reply_markup=InlineKeyboardMarkup(keyboard)
         )
 
+
     elif query.data == "continuar_post_ats":
-        user_data[chat_id]["paso"] = 3  # Avanza al siguiente paso (jornada lista)
+        user_data[chat_id]["paso"] = 3  # Marca como listo para salir
         await query.edit_message_text(
             "¡Excelente! 🎉 Ya estás listo para comenzar.\n\n"
             "**Escribe /start @VTetiquetado_bot** para iniciar tu jornada.",
