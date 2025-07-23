@@ -222,6 +222,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
 
 async def ingreso(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    chat_id = update.effective_chat.id  # <-- Definir aquí
     if not chat_permitido(chat_id):
         return
     if update.message.chat.type in ['group', 'supergroup']:
@@ -237,6 +238,7 @@ async def ingreso(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
 
 async def nombre_cuadrilla(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    chat_id = update.effective_chat.id  # <-- Definir aquí
     if not mensaje_es_para_bot(update, context):
         return
     chat_id = update.effective_chat.id
@@ -258,6 +260,7 @@ async def nombre_cuadrilla(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 # ------------------ HANDLE NOMBRE CUADRILLA ------------------ #
 async def handle_nombre_cuadrilla(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    chat_id = update.effective_chat.id  # <-- Definir aquí
     if not mensaje_es_para_bot(update, context):
         return
     query = update.callback_query
@@ -286,6 +289,7 @@ async def handle_nombre_cuadrilla(update: Update, context: ContextTypes.DEFAULT_
 
 # ------------------ HANDLE TIPO TRABAJO ------------------ #
 async def handle_tipo_trabajo(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    chat_id = update.effective_chat.id  # <-- Definir aquí
     if not mensaje_es_para_bot(update, context):
         return
     query = update.callback_query
@@ -301,6 +305,7 @@ async def handle_tipo_trabajo(update: Update, context: ContextTypes.DEFAULT_TYPE
     )
 
 async def foto_ingreso(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    chat_id = update.effective_chat.id  # <-- Definir aquí
     if not mensaje_es_para_bot(update, context):
         return
         
@@ -328,6 +333,7 @@ async def foto_ingreso(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 # -------------------- MANEJAR REPETICIÓN DE FOTOS --------------------
 async def manejar_repeticion_fotos(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    chat_id = update.effective_chat.id  # <-- Definir aquí
     if not mensaje_es_para_bot(update, context):
         return
     query = update.callback_query
@@ -382,6 +388,7 @@ async def manejar_repeticion_fotos(update: Update, context: ContextTypes.DEFAULT
 
 # -------------------- ATS/PETAR --------------------
 async def handle_ats_petar(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    chat_id = update.effective_chat.id  # <-- Definir aquí
     if not mensaje_es_para_bot(update, context):
         return
     query = update.callback_query
@@ -421,6 +428,7 @@ async def handle_ats_petar(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 # -------------------- FOTO ATS/PETAR --------------------
 async def foto_ats(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    chat_id = update.effective_chat.id  # <-- Definir aquí
     if not mensaje_es_para_bot(update, context):
         return
     chat_id = update.effective_chat.id
@@ -440,6 +448,7 @@ async def foto_ats(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
 
 async def breakout(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    chat_id = update.effective_chat.id  # <-- Definir aquí
     if not mensaje_es_para_bot(update, context):
         return
 
@@ -460,6 +469,7 @@ async def breakout(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 async def breakin(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    chat_id = update.effective_chat.id  # <-- Definir aquí
     if not mensaje_es_para_bot(update, context):
         return
 
@@ -483,6 +493,7 @@ async def breakin(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 # -------------------- SALIDA --------------------
 async def salida(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    chat_id = update.effective_chat.id  # <-- Definir aquí
     if not mensaje_es_para_bot(update, context):
         return
 
@@ -496,6 +507,7 @@ async def salida(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 # -------------------- CALLBACK SALIDA --------------------
 async def manejar_salida_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    chat_id = update.effective_chat.id  # <-- Definir aquí
     query = update.callback_query
     chat_id = query.message.chat.id
     await query.answer()
@@ -517,6 +529,7 @@ async def manejar_salida_callback(update: Update, context: ContextTypes.DEFAULT_
         )
 # -------------------- SELFIE SALIDA --------------------
 async def selfie_salida(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    chat_id = update.effective_chat.id  # <-- Definir aquí
     if not mensaje_es_para_bot(update, context):
         return
 
@@ -552,6 +565,7 @@ async def selfie_salida(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 # -------------------- MANEJAR FOTOS --------------------
 async def manejar_fotos(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    chat_id = update.effective_chat.id  # <-- Definir aquí
     if not mensaje_es_para_bot(update, context):
         return
     chat_id = update.effective_chat.id
@@ -600,4 +614,4 @@ async def main():
 if __name__ == "__main__":
     import nest_asyncio
     nest_asyncio.apply()
-    asyncio.get_event_loop().run_until_complete(main())
+    asyncio.run(main())
