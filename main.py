@@ -548,7 +548,7 @@ async def selfie_salida(update: Update, context: ContextTypes.DEFAULT_TYPE):
         f"🚪 Hora de salida registrada a las *{hora_salida}*.\n\n¿Está correcta la selfie?",
         parse_mode="Markdown",
         reply_markup=InlineKeyboardMarkup(keyboard)
-    
+    )
 
 # -------------------- MANEJAR FOTOS --------------------
 async def manejar_fotos(update: Update, context: ContextTypes.DEFAULT_TYPE):
