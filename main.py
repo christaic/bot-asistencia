@@ -203,30 +203,18 @@ async def validar_contenido(update: Update, tipo: str):
     return True
 
 # -------------------- COMANDOS DEL BOT --------------------
-async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    # Filtra mensajes en grupos para que solo responda si lo mencionan
+async def ingreso(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.message.chat.type in ['group', 'supergroup']:
         if not (
-            update.message.text.startswith(f"/start@{context.bot.username}")
-            or (update.message.reply_to_message and update.message.reply_to_message.from_user.id == context.bot.id)
+            update.message.text.startswith(f"/ingreso@{context.bot.username}") or
+            (update.message.reply_to_message and update.message.reply_to_message.from_user.id == context.bot.id)
         ):
             return
 
+    # Aquí puedes agregar la lógica de registro
     await update.message.reply_text(
-        "¡Hola! 👷‍♀️👷‍♂️, Escribe /ingreso para comenzar tu registro de asistencia.✅✅"
-    )
-
-async def ingreso(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if not mensaje_es_para_bot(update):
-        return
-    chat_id = update.effective_chat.id
-    user_data[chat_id] = {"paso": 0}
-    await update.message.reply_text(
-        "✍️ *Escribe el nombre de tu cuadrilla*\n\n"
-        "*Ejemplo:*\n"
-        "*T1: Juan Pérez*\n"
-        "*T2: José Flores*\n",
-        parse_mode="Markdown"
+        "✍️ Escribe el nombre de tu cuadrilla\n\n"
+        "Ejemplo:\nT1: Juan Pérez\nT2: José Flores"
     )
 
 async def nombre_cuadrilla(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -461,19 +449,16 @@ async def breakin(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 # -------------------- SALIDA --------------------
 async def salida(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    chat_id = update.effective_chat.id
+    if update.message.chat.type in ['group', 'supergroup']:
+        if not (
+            update.message.text.startswith(f"/salida@{context.bot.username}") or
+            (update.message.reply_to_message and update.message.reply_to_message.from_user.id == context.bot.id)
+        ):
+            return
 
-    if not mensaje_es_para_bot(update):
-        return
-
-    # Prepara el estado para recibir selfie de salida
-    user_data[chat_id] = user_data.get(chat_id, {})
-    user_data[chat_id]["paso"] = "selfie_salida"
-
+    # Aquí puedes agregar la lógica de salida
     await update.message.reply_text(
-        "📸 Por favor, envía tu *selfie de salida*.\n"
-        "Registraremos automáticamente tu hora de salida cuando la recibamos.",
-        parse_mode="Markdown"
+        "📸 Envía tu selfie de salida para finalizar la jornada."
     )
 
 
@@ -554,7 +539,6 @@ async def manejar_fotos(update: Update, context: ContextTypes.DEFAULT_TYPE):
 def main():
     app = ApplicationBuilder().token(BOT_TOKEN).build()
     app.post_init = init_bot_info
-    app.add_handler(CommandHandler("start", start))
     app.add_handler(CommandHandler("ingreso", ingreso))
     app.add_handler(CommandHandler("breakout", breakout))
     app.add_handler(CommandHandler("breakin", breakin))
