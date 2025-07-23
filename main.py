@@ -19,7 +19,6 @@ from telegram.ext import (
 from google.oauth2 import service_account
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaIoBaseUpload, MediaIoBaseDownload
-from utils.archivos import obtener_nombre_archivo_excel
 from pytz import timezone
 
 # Zona horaria de Lima (UTC-5)
