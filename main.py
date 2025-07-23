@@ -34,6 +34,18 @@ def chat_permitido(chat_id: int) -> bool:
     """Verifica si el chat está permitido"""
     return chat_id in ALLOWED_CHATS
 
+# -------------------- MENSAJE ES PARA BOT --------------------
+def es_comando_para_bot(update: Update, bot_username: str, comando: str) -> bool:
+    """
+    Verifica que el comando esté dirigido explícitamente a este bot
+    con el formato: /comando @TuBot
+    """
+    if not update.message or not update.message.text:
+        return False
+
+    texto = update.message.text.strip().lower()
+    return texto == f"/{comando} @{bot_username.lower()}"
+
 # Carga de credenciales desde variable de entorno
 CREDENTIALS_JSON = os.environ["GOOGLE_CREDENTIALS_JSON"]
 
@@ -180,28 +192,6 @@ async def init_bot_info(app):
     BOT_USERNAME = f"@{bot_info.username}"
     logger.info(f"Bot iniciado como {BOT_USERNAME}")
 
-
-# -------------------- MENSAJE ES PARA BOT --------------------
-def mensaje_es_para_bot(update: Update, context: ContextTypes.DEFAULT_TYPE) -> bool:
-    """Verifica si el mensaje es para el bot (etiquetado o respuesta al bot)."""
-    message = update.message or update.callback_query.message
-
-    # Para grupos o supergrupos
-    if message.chat.type in ["group", "supergroup"]:
-        text = message.text or ""
-        # Responde si:
-        # 1. El mensaje empieza con un comando etiquetado al bot
-        # 2. Es respuesta a un mensaje del bot
-        return (
-            text.startswith(f"@{context.bot.username}")
-            or (message.reply_to_message and message.reply_to_message.from_user.id == context.bot.id)
-        )
-
-    # En chats privados siempre responde
-    return True
-
-
-
 # -------------------- VALIDACIÓN DE CONTENIDO --------------------
 async def validar_contenido(update: Update, tipo: str):
     if tipo == "texto" and not update.message.text:
@@ -215,11 +205,11 @@ async def validar_contenido(update: Update, tipo: str):
 # -------------------- COMANDOS DEL BOT --------------------
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    chat_id = update.effective_chat.id
+    if not chat_permitido(chat_id):
+        return
     if update.message.chat.type in ['group', 'supergroup']:
-        if not (
-            update.message.text.startswith(f"/start@{context.bot.username}") or
-            (update.message.reply_to_message and update.message.reply_to_message.from_user.id == context.bot.id)
-        ):
+        if not es_comando_para_bot(update, context.bot.username, "start"):
             return
 
     await update.message.reply_text(
@@ -227,8 +217,12 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
 
 async def ingreso(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if not mensaje_es_para_bot(update, context):
+    chat_id = update.effective_chat.id
+    if not chat_permitido(chat_id):
         return
+    if update.message.chat.type in ['group', 'supergroup']:
+        if not es_comando_para_bot(update, context.bot.username, "ingreso"):
+            return
 
     await update.message.reply_text(
         "✍️ Escribe el nombre de tu cuadrilla\n\n"
@@ -236,8 +230,6 @@ async def ingreso(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
 
 async def nombre_cuadrilla(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if not mensaje_es_para_bot(update, context):
-        return
     chat_id = update.effective_chat.id
     if chat_id not in user_data or user_data[chat_id].get("paso") != 0:
         return
@@ -257,8 +249,6 @@ async def nombre_cuadrilla(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 # ------------------ HANDLE NOMBRE CUADRILLA ------------------ #
 async def handle_nombre_cuadrilla(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if not mensaje_es_para_bot(update, context):
-        return
     query = update.callback_query
     chat_id = query.message.chat.id
     await query.answer()
@@ -285,8 +275,6 @@ async def handle_nombre_cuadrilla(update: Update, context: ContextTypes.DEFAULT_
 
 # ------------------ HANDLE TIPO TRABAJO ------------------ #
 async def handle_tipo_trabajo(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if not mensaje_es_para_bot(update, context):
-        return
     query = update.callback_query
     chat_id = query.message.chat.id
     await query.answer()
@@ -300,8 +288,6 @@ async def handle_tipo_trabajo(update: Update, context: ContextTypes.DEFAULT_TYPE
     )
 
 async def foto_ingreso(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if not mensaje_es_para_bot(update, context):
-        return
     chat_id = update.effective_chat.id
     if chat_id not in user_data or user_data[chat_id].get("paso") != 1:
         return
@@ -326,8 +312,6 @@ async def foto_ingreso(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 # -------------------- MANEJAR REPETICIÓN DE FOTOS --------------------
 async def manejar_repeticion_fotos(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if not mensaje_es_para_bot(update, context):
-        return
     query = update.callback_query
     chat_id = query.message.chat.id
     await query.answer()
@@ -380,8 +364,6 @@ async def manejar_repeticion_fotos(update: Update, context: ContextTypes.DEFAULT
 
 # -------------------- ATS/PETAR --------------------
 async def handle_ats_petar(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if not mensaje_es_para_bot(update, context):
-        return
     query = update.callback_query
     chat_id = query.message.chat.id
     await query.answer()
@@ -419,8 +401,6 @@ async def handle_ats_petar(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 # -------------------- FOTO ATS/PETAR --------------------
 async def foto_ats(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if not mensaje_es_para_bot(update, context):
-        return
     chat_id = update.effective_chat.id
     if chat_id not in user_data or user_data[chat_id].get("paso") != 2:
         return
@@ -438,9 +418,13 @@ async def foto_ats(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
 
 async def breakout(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if not mensaje_es_para_bot(update, context):
+    chat_id = update.effective_chat.id
+    if not chat_permitido(chat_id):
         return
-
+    if update.message.chat.type in ['group', 'supergroup']:
+        if not es_comando_para_bot(update, context.bot.username, "breakout"):
+            return
+            
     hora = datetime.now(LIMA_TZ).strftime("%H:%M")
     nombre_grupo = update.effective_chat.title
     loop = asyncio.get_running_loop()
@@ -458,8 +442,12 @@ async def breakout(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 async def breakin(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if not mensaje_es_para_bot(update, context):
+    chat_id = update.effective_chat.id
+    if not chat_permitido(chat_id):
         return
+    if update.message.chat.type in ['group', 'supergroup']:
+        if not es_comando_para_bot(update, context.bot.username, "breakin"):
+            return
 
     hora = datetime.now(LIMA_TZ).strftime("%H:%M")
     nombre_grupo = update.effective_chat.title
@@ -481,11 +469,11 @@ async def breakin(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 # -------------------- SALIDA --------------------
 async def salida(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    chat_id = update.effective_chat.id
+    if not chat_permitido(chat_id):
+        return
     if update.message.chat.type in ['group', 'supergroup']:
-        if not (
-            update.message.text.startswith(f"/salida@{context.bot.username}") or
-            (update.message.reply_to_message and update.message.reply_to_message.from_user.id == context.bot.id)
-        ):
+        if not es_comando_para_bot(update, context.bot.username, "salida"):
             return
 
     # Aquí puedes agregar la lógica de salida
@@ -568,9 +556,10 @@ async def manejar_fotos(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("⚠️ No es momento de enviar fotos ⚠️ \n\n. *Usa /ingreso y etiquetame para comenzar.*")
 
 # -------------------- MAIN --------------------
-def main():
+async def main():
     app = ApplicationBuilder().token(BOT_TOKEN).build()
-    app.post_init = init_bot_info
+    await init_bot_info(app)  # Llamamos async correctamente
+    app.add_handler(CommandHandler("start",start))
     app.add_handler(CommandHandler("ingreso", ingreso))
     app.add_handler(CommandHandler("breakout", breakout))
     app.add_handler(CommandHandler("breakin", breakin))
@@ -582,8 +571,11 @@ def main():
     app.add_handler(CallbackQueryHandler(manejar_repeticion_fotos, pattern="^(repetir_foto_|continuar_ats|continuar_post_ats|reenviar_ats)$"))
     app.add_handler(CallbackQueryHandler(handle_ats_petar, pattern="^ats_"))
     app.add_handler(CallbackQueryHandler(manejar_salida_callback, pattern="^(repetir_foto_salida|finalizar_salida)$"))
+
     print("Bot en ejecución...")
-    app.run_polling()
+    await app.run_polling()
 
 if __name__ == "__main__":
-    main()
+    import asyncio
+    asyncio.run(main())
+
