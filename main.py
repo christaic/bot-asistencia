@@ -204,9 +204,17 @@ async def validar_contenido(update: Update, tipo: str):
 
 # -------------------- COMANDOS DEL BOT --------------------
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if not mensaje_es_para_bot(update):
-        return
-    await update.message.reply_text("¡Hola! Usa /ingreso para comenzar tu registro de asistencia.")
+    # Filtra mensajes en grupos para que solo responda si lo mencionan
+    if update.message.chat.type in ['group', 'supergroup']:
+        if not (
+            update.message.text.startswith(f"/start@{context.bot.username}")
+            or (update.message.reply_to_message and update.message.reply_to_message.from_user.id == context.bot.id)
+        ):
+            return
+
+    await update.message.reply_text(
+        "¡Hola! 👷‍♀️👷‍♂️, Escribe /ingreso para comenzar tu registro de asistencia.✅✅"
+    )
 
 async def ingreso(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not mensaje_es_para_bot(update):
