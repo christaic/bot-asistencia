@@ -180,15 +180,26 @@ async def init_bot_info(app):
     BOT_USERNAME = f"@{bot_info.username}"
     logger.info(f"Bot iniciado como {BOT_USERNAME}")
 
+
+# -------------------- MENSAJE ES PARA BOT --------------------
 def mensaje_es_para_bot(update: Update, context: ContextTypes.DEFAULT_TYPE) -> bool:
-    """Verifica si el mensaje está dirigido al bot (por mención o respuesta)."""
-    if update.message.chat.type in ['group', 'supergroup']:
+    """Verifica si el mensaje es para el bot (etiquetado o respuesta al bot)."""
+    message = update.message or update.callback_query.message
+
+    # Para grupos o supergrupos
+    if message.chat.type in ["group", "supergroup"]:
+        text = message.text or ""
+        # Responde si:
+        # 1. El mensaje empieza con un comando etiquetado al bot
+        # 2. Es respuesta a un mensaje del bot
         return (
-            update.message.text and update.message.text.startswith(f"@{context.bot.username}")
-        ) or (
-            update.message.reply_to_message and update.message.reply_to_message.from_user.id == context.bot.id
+            text.startswith(f"@{context.bot.username}")
+            or (message.reply_to_message and message.reply_to_message.from_user.id == context.bot.id)
         )
+
+    # En chats privados siempre responde
     return True
+
 
 
 # -------------------- VALIDACIÓN DE CONTENIDO --------------------
