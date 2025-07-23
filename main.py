@@ -438,7 +438,7 @@ async def foto_ats(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
 
 async def breakout(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if not mensaje_es_para_bot(update):
+    if not mensaje_es_para_bot(update, context):
         return
 
     hora = datetime.now(LIMA_TZ).strftime("%H:%M")
@@ -458,7 +458,7 @@ async def breakout(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 async def breakin(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if not mensaje_es_para_bot(update):
+    if not mensaje_es_para_bot(update, context):
         return
 
     hora = datetime.now(LIMA_TZ).strftime("%H:%M")
