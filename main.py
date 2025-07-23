@@ -35,16 +35,21 @@ def chat_permitido(chat_id: int) -> bool:
     return chat_id in ALLOWED_CHATS
 
 # -------------------- MENSAJE ES PARA BOT --------------------
-def es_comando_para_bot(update: Update, bot_username: str, comando: str) -> bool:
+def mensaje_es_para_bot(update: Update, context: ContextTypes.DEFAULT_TYPE) -> bool:
     """
-    Verifica que el comando esté dirigido explícitamente a este bot
-    con el formato: /comando @TuBot
+    Verifica si el mensaje está dirigido al bot, ya sea por etiquetado o respuesta directa.
     """
     if not update.message or not update.message.text:
         return False
 
-    texto = update.message.text.strip().lower()
-    return texto == f"/{comando} @{bot_username.lower()}"
+    if update.message.chat.type in ['group', 'supergroup']:
+        texto = update.message.text.strip().lower()
+        bot_username = context.bot.username.lower()
+        # Verifica que el mensaje contenga el comando dirigido al bot (por ejemplo /ingreso @TuBot)
+        return texto.startswith(f"/") and (f" @{bot_username}" in texto)
+
+    # En privado siempre responde
+    return True
 
 # Carga de credenciales desde variable de entorno
 CREDENTIALS_JSON = os.environ["GOOGLE_CREDENTIALS_JSON"]
@@ -209,16 +214,19 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not chat_permitido(chat_id):
         return
     if update.message.chat.type in ['group', 'supergroup']:
-        if not es_comando_para_bot(update, context.bot.username, "start"):
+        if not mensaje_es_para_bot(update, context):
             return
 
     await update.message.reply_text(
-        "👋 ¡Hola! Para iniciar el registro, usa el comando /ingreso y etiquetame 💪💪."
+        "👋 ¡Hola! Para iniciar, usa el comando /ingreso y etiquetame 💪💪."
     )
 
 async def ingreso(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if not mensaje_es_para_bot(update, context):
+    if not chat_permitido(chat_id):
         return
+    if update.message.chat.type in ['group', 'supergroup']:
+        if not mensaje_es_para_bot(update, context):
+            return
 
     chat_id = update.effective_chat.id
     user_data[chat_id] = {"paso": 0}  # 👈 Reinicia el flujo al paso 0
@@ -229,6 +237,8 @@ async def ingreso(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
 
 async def nombre_cuadrilla(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not mensaje_es_para_bot(update, context):
+        return
     chat_id = update.effective_chat.id
     if chat_id not in user_data or user_data[chat_id].get("paso") != 0:
         return
@@ -248,6 +258,8 @@ async def nombre_cuadrilla(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 # ------------------ HANDLE NOMBRE CUADRILLA ------------------ #
 async def handle_nombre_cuadrilla(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not mensaje_es_para_bot(update, context):
+        return
     query = update.callback_query
     chat_id = query.message.chat.id
     await query.answer()
@@ -274,6 +286,8 @@ async def handle_nombre_cuadrilla(update: Update, context: ContextTypes.DEFAULT_
 
 # ------------------ HANDLE TIPO TRABAJO ------------------ #
 async def handle_tipo_trabajo(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not mensaje_es_para_bot(update, context):
+        return
     query = update.callback_query
     chat_id = query.message.chat.id
     await query.answer()
@@ -287,6 +301,9 @@ async def handle_tipo_trabajo(update: Update, context: ContextTypes.DEFAULT_TYPE
     )
 
 async def foto_ingreso(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not mensaje_es_para_bot(update, context):
+        return
+        
     chat_id = update.effective_chat.id
     if chat_id not in user_data or user_data[chat_id].get("paso") != 1:
         return
@@ -311,6 +328,8 @@ async def foto_ingreso(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 # -------------------- MANEJAR REPETICIÓN DE FOTOS --------------------
 async def manejar_repeticion_fotos(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not mensaje_es_para_bot(update, context):
+        return
     query = update.callback_query
     chat_id = query.message.chat.id
     await query.answer()
@@ -363,6 +382,8 @@ async def manejar_repeticion_fotos(update: Update, context: ContextTypes.DEFAULT
 
 # -------------------- ATS/PETAR --------------------
 async def handle_ats_petar(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not mensaje_es_para_bot(update, context):
+        return
     query = update.callback_query
     chat_id = query.message.chat.id
     await query.answer()
@@ -400,6 +421,8 @@ async def handle_ats_petar(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 # -------------------- FOTO ATS/PETAR --------------------
 async def foto_ats(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not mensaje_es_para_bot(update, context):
+        return
     chat_id = update.effective_chat.id
     if chat_id not in user_data or user_data[chat_id].get("paso") != 2:
         return
@@ -417,20 +440,16 @@ async def foto_ats(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
 
 async def breakout(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    chat_id = update.effective_chat.id
-    if not chat_permitido(chat_id):
+    if not mensaje_es_para_bot(update, context):
         return
-    if update.message.chat.type in ['group', 'supergroup']:
-        if not es_comando_para_bot(update, context.bot.username, "breakout"):
-            return
-            
+
     hora = datetime.now(LIMA_TZ).strftime("%H:%M")
     nombre_grupo = update.effective_chat.title
     loop = asyncio.get_running_loop()
 
     archivo_drive = await loop.run_in_executor(None, buscar_archivo_en_drive, f"{nombre_grupo}.xlsx")
     if not archivo_drive:
-        await update.message.reply_text("No hay registro de ingreso previo.")
+        await update.message.reply_text("❌ No hay registro de ingreso previo.")
         return
 
     df = await loop.run_in_executor(None, descargar_excel, archivo_drive["id"])
@@ -441,12 +460,8 @@ async def breakout(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 async def breakin(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    chat_id = update.effective_chat.id
-    if not chat_permitido(chat_id):
+    if not mensaje_es_para_bot(update, context):
         return
-    if update.message.chat.type in ['group', 'supergroup']:
-        if not es_comando_para_bot(update, context.bot.username, "breakin"):
-            return
 
     hora = datetime.now(LIMA_TZ).strftime("%H:%M")
     nombre_grupo = update.effective_chat.title
@@ -454,7 +469,7 @@ async def breakin(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     archivo_drive = await loop.run_in_executor(None, buscar_archivo_en_drive, f"{nombre_grupo}.xlsx")
     if not archivo_drive:
-        await update.message.reply_text("No hay registro de ingreso previo.")
+        await update.message.reply_text("❌ No hay registro de ingreso previo.")
         return
 
     df = await loop.run_in_executor(None, descargar_excel, archivo_drive["id"])
@@ -468,14 +483,12 @@ async def breakin(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 # -------------------- SALIDA --------------------
 async def salida(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    chat_id = update.effective_chat.id
-    if not chat_permitido(chat_id):
+    if not mensaje_es_para_bot(update, context):
         return
-    if update.message.chat.type in ['group', 'supergroup']:
-        if not es_comando_para_bot(update, context.bot.username, "salida"):
-            return
 
-    # Aquí puedes agregar la lógica de salida
+    chat_id = update.effective_chat.id
+    user_data[chat_id] = {"paso": "selfie_salida"}
+
     await update.message.reply_text(
         "📸 Envía tu selfie de salida para finalizar la jornada."
     )
@@ -488,8 +501,6 @@ async def manejar_salida_callback(update: Update, context: ContextTypes.DEFAULT_
     await query.answer()
 
     if query.data == "repetir_foto_salida":
-        if "selfie_salida" in user_data.get(chat_id, {}):
-            del user_data[chat_id]["selfie_salida"]
         user_data[chat_id]["paso"] = "selfie_salida"
         await query.edit_message_text(
             "🔄 Por favor, envía nuevamente tu *selfie de salida*.",
@@ -497,18 +508,25 @@ async def manejar_salida_callback(update: Update, context: ContextTypes.DEFAULT_
         )
 
     elif query.data == "finalizar_salida":
-        if chat_id in user_data:
-            user_data[chat_id]["paso"] = None
+        user_data[chat_id]["paso"] = None
         await query.edit_message_text(
-            "💪 *¡Buen trabajo! Hasta mañana.*\n\n"
-            "👏 *Gracias por tu apoyo en la jornada de hoy.*\n\n"
+            "💪 *¡Buen trabajo! Jornada finalizada.*\n\n"
+            "👏 *Gracias por tu apoyo hoy.*\n\n"
             "🫡 ¡Cambio y fuera! 🫡",
             parse_mode="Markdown"
         )
-
 # -------------------- SELFIE SALIDA --------------------
 async def selfie_salida(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not mensaje_es_para_bot(update, context):
+        return
+
     chat_id = update.effective_chat.id
+    if user_data.get(chat_id, {}).get("paso") != "selfie_salida":
+        return
+
+    if not await validar_contenido(update, "foto"):
+        return
+
     hora_salida = datetime.now(LIMA_TZ).strftime("%H:%M")
 
     nombre_grupo = update.effective_chat.title
@@ -517,28 +535,25 @@ async def selfie_salida(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("❌ No hay registro de ingreso previo.")
         return
 
-    # Solo marcamos que se recibió la foto
-    user_data[chat_id]["selfie_salida"] = True
-
-    # Actualizar el Excel con la hora de salida
+    # Actualizar Excel
     df = descargar_excel(archivo_drive["id"])
     df.at[df.index[-1], "HORA SALIDA"] = hora_salida
     subir_excel(archivo_drive["id"], df)
 
-    # Teclado de confirmación
     keyboard = [
         [InlineKeyboardButton("🔄 Repetir Selfie de Salida", callback_data="repetir_foto_salida")],
         [InlineKeyboardButton("✅ Finalizar Jornada", callback_data="finalizar_salida")],
     ]
     await update.message.reply_text(
-        f"🚪 Hora de salida registrada a las *{hora_salida}*.\n\n"
-        "¿Está correcta la selfie?",
+        f"🚪 Hora de salida registrada a las *{hora_salida}*.\n\n¿Está correcta la selfie?",
         parse_mode="Markdown",
         reply_markup=InlineKeyboardMarkup(keyboard)
-    )
+    
 
 # -------------------- MANEJAR FOTOS --------------------
 async def manejar_fotos(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not mensaje_es_para_bot(update, context):
+        return
     chat_id = update.effective_chat.id
     paso = user_data.get(chat_id, {}).get("paso")
 
@@ -554,27 +569,32 @@ async def manejar_fotos(update: Update, context: ContextTypes.DEFAULT_TYPE):
 # -------------------- MAIN --------------------
 async def main():
     app = ApplicationBuilder().token(BOT_TOKEN).build()
-    await init_bot_info(app)
+    app.post_init = init_bot_info  # Inicializa el nombre del bot
 
-    # Handlers de comandos
+    # --------- COMANDOS PRINCIPALES ---------
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CommandHandler("ingreso", ingreso))
     app.add_handler(CommandHandler("breakout", breakout))
     app.add_handler(CommandHandler("breakin", breakin))
     app.add_handler(CommandHandler("salida", salida))
 
-    # Handlers de mensajes
+    # --------- MENSAJES ---------
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, nombre_cuadrilla))
-    app.add_handler(MessageHandler(filters.PHOTO, manejar_fotos))
+    app.add_handler(MessageHandler(filters.PHOTO, manejar_fotos))  # Centralizamos todas las fotos
 
-    # Handlers de callbacks
+    # --------- CALLBACKS CUADRILLA ---------
     app.add_handler(CallbackQueryHandler(handle_nombre_cuadrilla, pattern="^(confirmar_nombre|corregir_nombre)$"))
     app.add_handler(CallbackQueryHandler(handle_tipo_trabajo, pattern="^tipo_"))
-    app.add_handler(CallbackQueryHandler(manejar_repeticion_fotos, pattern="^(repetir_foto_|continuar_ats|continuar_post_ats|reenviar_ats)$"))
-    app.add_handler(CallbackQueryHandler(handle_ats_petar, pattern="^ats_"))
+
+    # --------- CALLBACKS ATS/PETAR ---------
+    app.add_handler(CallbackQueryHandler(handle_ats_petar, pattern="^continuar_ats$"))
+    app.add_handler(CallbackQueryHandler(handle_ats_respuesta, pattern="^ats_(si|no)$"))
+    app.add_handler(CallbackQueryHandler(manejar_repeticion_fotos, pattern="^(repetir_foto_inicio|repetir_foto_ats|continuar_post_ats)$"))
+
+    # --------- CALLBACKS SALIDA ---------
     app.add_handler(CallbackQueryHandler(manejar_salida_callback, pattern="^(repetir_foto_salida|finalizar_salida)$"))
 
-    print("Bot en ejecución...")
+    print("🚀 Bot de Asistencia en ejecución...")
     await app.run_polling()
 
 if __name__ == "__main__":
