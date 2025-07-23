@@ -518,11 +518,8 @@ async def selfie_salida(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("❌ No hay registro de ingreso previo.")
         return
 
-    # Descargar la foto
-    ruta = f"reportes/{chat_id}_selfie_salida.jpg"
-    archivo = await update.message.photo[-1].get_file()
-    await archivo.download_to_drive(ruta)
-    user_data[chat_id]["selfie_salida"] = ruta
+    # Solo marcamos que se recibió la foto
+    user_data[chat_id]["selfie_salida"] = True
 
     # Actualizar el Excel con la hora de salida
     df = descargar_excel(archivo_drive["id"])
@@ -558,14 +555,20 @@ async def manejar_fotos(update: Update, context: ContextTypes.DEFAULT_TYPE):
 # -------------------- MAIN --------------------
 async def main():
     app = ApplicationBuilder().token(BOT_TOKEN).build()
-    await init_bot_info(app)  # Llamamos async correctamente
-    app.add_handler(CommandHandler("start",start))
+    await init_bot_info(app)
+
+    # Handlers de comandos
+    app.add_handler(CommandHandler("start", start))
     app.add_handler(CommandHandler("ingreso", ingreso))
     app.add_handler(CommandHandler("breakout", breakout))
     app.add_handler(CommandHandler("breakin", breakin))
     app.add_handler(CommandHandler("salida", salida))
+
+    # Handlers de mensajes
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, nombre_cuadrilla))
     app.add_handler(MessageHandler(filters.PHOTO, manejar_fotos))
+
+    # Handlers de callbacks
     app.add_handler(CallbackQueryHandler(handle_nombre_cuadrilla, pattern="^(confirmar_nombre|corregir_nombre)$"))
     app.add_handler(CallbackQueryHandler(handle_tipo_trabajo, pattern="^tipo_"))
     app.add_handler(CallbackQueryHandler(manejar_repeticion_fotos, pattern="^(repetir_foto_|continuar_ats|continuar_post_ats|reenviar_ats)$"))
@@ -576,6 +579,6 @@ async def main():
     await app.run_polling()
 
 if __name__ == "__main__":
-    import asyncio
-    asyncio.run(main())
-
+    import nest_asyncio
+    nest_asyncio.apply()
+    asyncio.get_event_loop().run_until_complete(main())
