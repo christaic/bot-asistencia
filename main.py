@@ -180,17 +180,16 @@ async def init_bot_info(app):
     BOT_USERNAME = f"@{bot_info.username}"
     logger.info(f"Bot iniciado como {BOT_USERNAME}")
 
-def mensaje_es_para_bot(update: Update):
-    mensaje = update.message
-    if not mensaje:
-        return False
-    # Mención directa
-    if BOT_USERNAME and BOT_USERNAME in (mensaje.text or ""):
-        return True
-    # Respuesta al bot
-    if mensaje.reply_to_message and mensaje.reply_to_message.from_user.username == BOT_USERNAME.strip("@"):
-        return True
-    return False
+def mensaje_es_para_bot(update: Update, context: ContextTypes.DEFAULT_TYPE) -> bool:
+    """Verifica si el mensaje está dirigido al bot (por mención o respuesta)."""
+    if update.message.chat.type in ['group', 'supergroup']:
+        return (
+            update.message.text and update.message.text.startswith(f"@{context.bot.username}")
+        ) or (
+            update.message.reply_to_message and update.message.reply_to_message.from_user.id == context.bot.id
+        )
+    return True
+
 
 # -------------------- VALIDACIÓN DE CONTENIDO --------------------
 async def validar_contenido(update: Update, tipo: str):
@@ -203,26 +202,37 @@ async def validar_contenido(update: Update, tipo: str):
     return True
 
 # -------------------- COMANDOS DEL BOT --------------------
-async def ingreso(update: Update, context: ContextTypes.DEFAULT_TYPE):
+
+async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.message.chat.type in ['group', 'supergroup']:
         if not (
-            update.message.text.startswith(f"/ingreso@{context.bot.username}") or
+            update.message.text.startswith(f"/start@{context.bot.username}") or
             (update.message.reply_to_message and update.message.reply_to_message.from_user.id == context.bot.id)
         ):
             return
 
-    # Aquí puedes agregar la lógica de registro
+    await update.message.reply_text(
+        "👋 ¡Hola! Para iniciar el registro, usa el comando /ingreso y etiquetame 💪💪."
+    )
+
+async def ingreso(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not mensaje_es_para_bot(update, context):
+        return
+
     await update.message.reply_text(
         "✍️ Escribe el nombre de tu cuadrilla\n\n"
         "Ejemplo:\nT1: Juan Pérez\nT2: José Flores"
     )
 
 async def nombre_cuadrilla(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not mensaje_es_para_bot(update, context):
+        return
     chat_id = update.effective_chat.id
     if chat_id not in user_data or user_data[chat_id].get("paso") != 0:
         return
     if not await validar_contenido(update, "texto"):
         return
+
     user_data[chat_id]["cuadrilla"] = update.message.text
     keyboard = [
         [InlineKeyboardButton("✅ Confirma el nombre de tu cuadrilla", callback_data="confirmar_nombre")],
@@ -234,10 +244,14 @@ async def nombre_cuadrilla(update: Update, context: ContextTypes.DEFAULT_TYPE):
         reply_markup=InlineKeyboardMarkup(keyboard),
     )
 
+# ------------------ HANDLE NOMBRE CUADRILLA ------------------ #
 async def handle_nombre_cuadrilla(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not mensaje_es_para_bot(update, context):
+        return
     query = update.callback_query
     chat_id = query.message.chat.id
     await query.answer()
+
     if query.data == "confirmar_nombre":
         keyboard = [
             [InlineKeyboardButton("📌 Ordenamiento", callback_data="tipo_ordenamiento")],
@@ -257,19 +271,26 @@ async def handle_nombre_cuadrilla(update: Update, context: ContextTypes.DEFAULT_
             parse_mode="Markdown"
         )
 
+
+# ------------------ HANDLE TIPO TRABAJO ------------------ #
 async def handle_tipo_trabajo(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not mensaje_es_para_bot(update, context):
+        return
     query = update.callback_query
     chat_id = query.message.chat.id
     await query.answer()
+
     tipo = "Ordenamiento" if query.data == "tipo_ordenamiento" else "Etiquetado"
     user_data[chat_id]["tipo"] = tipo
     user_data[chat_id]["paso"] = 1
     await query.edit_message_text(
-        f"Tipo de trabajo seleccionado: *{tipo}*\n\n📸 Ahora envia tu selfie de inicio.",
+        f"Tipo de trabajo seleccionado: *{tipo}*\n\n📸 Ahora envía tu selfie de inicio.",
         parse_mode="Markdown"
     )
 
 async def foto_ingreso(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not mensaje_es_para_bot(update, context):
+        return
     chat_id = update.effective_chat.id
     if chat_id not in user_data or user_data[chat_id].get("paso") != 1:
         return
@@ -283,15 +304,19 @@ async def foto_ingreso(update: Update, context: ContextTypes.DEFAULT_TYPE):
     loop = asyncio.get_running_loop()
     await loop.run_in_executor(None, crear_o_actualizar_excel, update, data)
 
-
     keyboard = [
         [InlineKeyboardButton("🔄 Repetir Selfie", callback_data="repetir_foto_inicio")],
         [InlineKeyboardButton("📝📋 Continuar con ATS/PETAR", callback_data="continuar_ats")],
     ]
-    await update.message.reply_text("¿Es correcto el selfie de inicio?", reply_markup=InlineKeyboardMarkup(keyboard))
+    await update.message.reply_text(
+        "¿Es correcto el selfie de inicio?",
+        reply_markup=InlineKeyboardMarkup(keyboard)
+    )
 
 # -------------------- MANEJAR REPETICIÓN DE FOTOS --------------------
 async def manejar_repeticion_fotos(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not mensaje_es_para_bot(update, context):
+        return
     query = update.callback_query
     chat_id = query.message.chat.id
     await query.answer()
@@ -344,6 +369,8 @@ async def manejar_repeticion_fotos(update: Update, context: ContextTypes.DEFAULT
 
 # -------------------- ATS/PETAR --------------------
 async def handle_ats_petar(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not mensaje_es_para_bot(update, context):
+        return
     query = update.callback_query
     chat_id = query.message.chat.id
     await query.answer()
@@ -381,29 +408,23 @@ async def handle_ats_petar(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 # -------------------- FOTO ATS/PETAR --------------------
 async def foto_ats(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not mensaje_es_para_bot(update, context):
+        return
     chat_id = update.effective_chat.id
     if chat_id not in user_data or user_data[chat_id].get("paso") != 2:
         return
-
     if not await validar_contenido(update, "foto"):
         return
 
-    nombre_grupo = update.effective_chat.title
-    loop = asyncio.get_running_loop()
-
-    archivo_drive = await loop.run_in_executor(None, buscar_archivo_en_drive, f"{nombre_grupo}.xlsx")
-
-    if archivo_drive:
-        df = await loop.run_in_executor(None, descargar_excel, archivo_drive["id"])
-        df.at[df.index[-1], "ATS/PETAR"] = "Sí"
-        await loop.run_in_executor(None, subir_excel, archivo_drive["id"], df)
-
+    user_data[chat_id]["ats_foto"] = "OK"  # Solo marcamos que ATS/PETAR tiene foto
     keyboard = [
         [InlineKeyboardButton("🔄 Repetir Foto ATS/PETAR", callback_data="repetir_foto_ats")],
-        [InlineKeyboardButton("✅ Continuar", callback_data="continuar_post_ats")],
+        [InlineKeyboardButton("➡️ Continuar a jornada", callback_data="continuar_post_ats")],
     ]
-    await update.message.reply_text("¿Es correcta la foto ATS/PETAR?", reply_markup=InlineKeyboardMarkup(keyboard))
-
+    await update.message.reply_text(
+        "¿Es correcta la foto del ATS/PETAR?",
+        reply_markup=InlineKeyboardMarkup(keyboard)
+    )
 
 async def breakout(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not mensaje_es_para_bot(update):
