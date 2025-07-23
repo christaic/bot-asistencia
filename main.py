@@ -557,7 +557,7 @@ def main():
     app.add_handler(CallbackQueryHandler(handle_tipo_trabajo, pattern="^tipo_"))
     app.add_handler(CallbackQueryHandler(manejar_repeticion_fotos, pattern="^(repetir_foto_|continuar_ats|continuar_post_ats|reenviar_ats)$"))
     app.add_handler(CallbackQueryHandler(handle_ats_petar, pattern="^ats_"))
-    app.add_handler(CallbackQueryHandler(handle_finalizar_salida, pattern="^finalizar_salida$"))
+    app.add_handler(CallbackQueryHandler(manejar_salida_callback, pattern="^(repetir_foto_salida|finalizar_salida)$"))
     print("Bot en ejecución...")
     app.run_polling()
 
