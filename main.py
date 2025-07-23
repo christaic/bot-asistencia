@@ -237,17 +237,28 @@ async def ingreso(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "Ejemplo:\nT1: Juan Pérez\nT2: José Flores"
     )
 
+# -------------------- NOMBRE CUADRILLA --------------------
 async def nombre_cuadrilla(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    chat_id = update.effective_chat.id  # <-- Definir aquí
     if not mensaje_es_para_bot(update, context):
         return
+
     chat_id = update.effective_chat.id
-    if chat_id not in user_data or user_data[chat_id].get("paso") != 0:
+
+    # Inicializar user_data para el chat si no existe
+    if chat_id not in user_data:
+        user_data[chat_id] = {"paso": 0}
+
+    # Validamos que estemos en el paso correcto
+    if user_data[chat_id].get("paso") != 0:
         return
+
     if not await validar_contenido(update, "texto"):
         return
 
-    user_data[chat_id]["cuadrilla"] = update.message.text
+    # Guardamos el nombre ingresado
+    user_data[chat_id]["cuadrilla"] = update.message.text.strip()
+
+    # Mostramos confirmación
     keyboard = [
         [InlineKeyboardButton("✅ Confirma el nombre de tu cuadrilla", callback_data="confirmar_nombre")],
         [InlineKeyboardButton("✏️ Corregir nombre", callback_data="corregir_nombre")],
@@ -258,16 +269,26 @@ async def nombre_cuadrilla(update: Update, context: ContextTypes.DEFAULT_TYPE):
         reply_markup=InlineKeyboardMarkup(keyboard),
     )
 
+
 # ------------------ HANDLE NOMBRE CUADRILLA ------------------ #
 async def handle_nombre_cuadrilla(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    chat_id = update.effective_chat.id  # <-- Definir aquí
     if not mensaje_es_para_bot(update, context):
         return
+
     query = update.callback_query
     chat_id = query.message.chat.id
     await query.answer()
 
     if query.data == "confirmar_nombre":
+        # Guardar en el Excel
+        data = generar_base_data(
+            user_data[chat_id]["cuadrilla"],
+            ""  # Tipo de trabajo se asignará después
+        )
+        loop = asyncio.get_running_loop()
+        await loop.run_in_executor(None, crear_o_actualizar_excel, update, data)
+
+        # Preguntar por tipo de trabajo
         keyboard = [
             [InlineKeyboardButton("📌 Ordenamiento", callback_data="tipo_ordenamiento")],
             [InlineKeyboardButton("🏷 Etiquetado", callback_data="tipo_etiquetado")],
@@ -276,8 +297,10 @@ async def handle_nombre_cuadrilla(update: Update, context: ContextTypes.DEFAULT_
             "Selecciona el tipo de trabajo:",
             reply_markup=InlineKeyboardMarkup(keyboard)
         )
+
     elif query.data == "corregir_nombre":
         user_data[chat_id]["cuadrilla"] = ""
+        user_data[chat_id]["paso"] = 0
         await query.edit_message_text(
             "✍️ *Escribe el nombre de tu cuadrilla*\n\n"
             "*Ejemplo:*\n"
@@ -289,20 +312,38 @@ async def handle_nombre_cuadrilla(update: Update, context: ContextTypes.DEFAULT_
 
 # ------------------ HANDLE TIPO TRABAJO ------------------ #
 async def handle_tipo_trabajo(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    chat_id = update.effective_chat.id  # <-- Definir aquí
     if not mensaje_es_para_bot(update, context):
         return
+
     query = update.callback_query
     chat_id = query.message.chat.id
     await query.answer()
 
     tipo = "Ordenamiento" if query.data == "tipo_ordenamiento" else "Etiquetado"
     user_data[chat_id]["tipo"] = tipo
-    user_data[chat_id]["paso"] = 1
+    user_data[chat_id]["paso"] = 1  # Ahora el bot espera la foto de ingreso
+
+    # --- Guardar tipo de trabajo en el Excel ---
+    nombre_grupo = query.message.chat.title
+    archivo_drive = buscar_archivo_en_drive(f"{nombre_grupo}.xlsx")
+    if archivo_drive:
+        df = descargar_excel(archivo_drive["id"])
+        df.at[df.index[-1], "TIPO DE TRABAJO"] = tipo
+        subir_excel(archivo_drive["id"], df)
+    else:
+        # Si no existe, creamos un nuevo registro desde cero
+        data = generar_base_data(
+            user_data.get(chat_id, {}).get("cuadrilla", ""),
+            tipo
+        )
+        loop = asyncio.get_running_loop()
+        await loop.run_in_executor(None, crear_o_actualizar_excel, update, data)
+
     await query.edit_message_text(
         f"Tipo de trabajo seleccionado: *{tipo}*\n\n📸 Ahora envía tu selfie de inicio.",
         parse_mode="Markdown"
     )
+
 
 async def foto_ingreso(update: Update, context: ContextTypes.DEFAULT_TYPE):
     chat_id = update.effective_chat.id  # <-- Definir aquí
@@ -428,9 +469,9 @@ async def handle_ats_petar(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 # -------------------- FOTO ATS/PETAR --------------------
 async def foto_ats(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    chat_id = update.effective_chat.id  # <-- Definir aquí
     if not mensaje_es_para_bot(update, context):
         return
+
     chat_id = update.effective_chat.id
     if chat_id not in user_data or user_data[chat_id].get("paso") != 2:
         return
@@ -447,11 +488,12 @@ async def foto_ats(update: Update, context: ContextTypes.DEFAULT_TYPE):
         reply_markup=InlineKeyboardMarkup(keyboard)
     )
 
+# -------------------- BREAK OUT --------------------
 async def breakout(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    chat_id = update.effective_chat.id  # <-- Definir aquí
     if not mensaje_es_para_bot(update, context):
         return
 
+    chat_id = update.effective_chat.id
     hora = datetime.now(LIMA_TZ).strftime("%H:%M")
     nombre_grupo = update.effective_chat.title
     loop = asyncio.get_running_loop()
@@ -469,10 +511,10 @@ async def breakout(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 async def breakin(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    chat_id = update.effective_chat.id  # <-- Definir aquí
     if not mensaje_es_para_bot(update, context):
         return
 
+    chat_id = update.effective_chat.id
     hora = datetime.now(LIMA_TZ).strftime("%H:%M")
     nombre_grupo = update.effective_chat.title
     loop = asyncio.get_running_loop()
@@ -490,6 +532,7 @@ async def breakin(update: Update, context: ContextTypes.DEFAULT_TYPE):
         f"🚶🚀 Regreso de Break 🚀🚶, registrado a las {hora}👀👀.\n\n"
         "**Escribe /start @VTetiquetado_bot** para continuar."
     )
+
 
 # -------------------- SALIDA --------------------
 async def salida(update: Update, context: ContextTypes.DEFAULT_TYPE):
