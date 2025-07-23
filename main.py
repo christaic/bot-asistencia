@@ -217,12 +217,11 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
 
 async def ingreso(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    chat_id = update.effective_chat.id
-    if not chat_permitido(chat_id):
+    if not mensaje_es_para_bot(update, context):
         return
-    if update.message.chat.type in ['group', 'supergroup']:
-        if not es_comando_para_bot(update, context.bot.username, "ingreso"):
-            return
+
+    chat_id = update.effective_chat.id
+    user_data[chat_id] = {"paso": 0}  # 👈 Reinicia el flujo al paso 0
 
     await update.message.reply_text(
         "✍️ Escribe el nombre de tu cuadrilla\n\n"
