@@ -166,7 +166,7 @@ def crear_o_actualizar_excel(update: Update, data):
         df = descargar_excel(archivo_drive["id"])
         # Solo añade fila si la última fila tiene fecha diferente (nueva jornada)
         if df.empty or df.iloc[-1]["FECHA"] != data["FECHA"]:
-            df = pd.concat([df, pd.DataFrame([data])], ignore_index=True)
+            df = pd.concat([df_existente, pd.DataFrame([data])], ignore_index=True)
             subir_excel(archivo_drive["id"], df)
     else:
         df = pd.DataFrame([data])
