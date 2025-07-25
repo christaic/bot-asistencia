@@ -370,41 +370,29 @@ async def handle_tipo_trabajo(update: Update, context: ContextTypes.DEFAULT_TYPE
 
 
 async def foto_ingreso(update: Update, context: ContextTypes.DEFAULT_TYPE):
-async def foto_ingreso(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    chat_id = update.effective_chat.id
     if not mensaje_es_para_bot(update, context):
         return
-
-    chat_id = update.effective_chat.id
+        
     if chat_id not in user_data or user_data[chat_id].get("paso") != 1:
         return
     if not await validar_contenido(update, "foto"):
         return
-
+        
     hora_ingreso = datetime.now(LIMA_TZ).strftime("%H:%M")
     user_data[chat_id]["hora_ingreso"] = hora_ingreso
 
-    # --- ACTUALIZAR SOLO LA ÚLTIMA FILA ---
+    # Aquí ya actualizamos la fila existente en Excel
     nombre_grupo = update.effective_chat.title
     archivo_drive = buscar_archivo_en_drive(f"{nombre_grupo}.xlsx")
-
     if archivo_drive:
         df = descargar_excel(archivo_drive["id"])
-        if not df.empty:
-            df.at[df.index[-1], "HORA INGRESO"] = hora_ingreso
-            subir_excel(archivo_drive["id"], df)
-        else:
-            # Si el archivo existe pero está vacío, creamos la fila inicial
-            data = generar_base_data(user_data[chat_id]["cuadrilla"], user_data[chat_id]["tipo"])
-            data["HORA INGRESO"] = hora_ingreso
-            subir_excel(archivo_drive["id"], pd.DataFrame([data]))
+        df.at[df.index[-1], "HORA INGRESO"] = hora_ingreso
+        subir_excel(archivo_drive["id"], df)
     else:
-        # Si no existe el archivo, lo creamos con la fila inicial
-        data = generar_base_data(user_data[chat_id]["cuadrilla"], user_data[chat_id]["tipo"])
-        data["HORA INGRESO"] = hora_ingreso
-        loop = asyncio.get_running_loop()
-        await loop.run_in_executor(None, crear_o_actualizar_excel, update, data)
+        await update.message.reply_text("❌ No hay registro de cuadrilla. Usa /ingreso para iniciar.")
+        return
 
-    # --- MOSTRAR BOTONES ---
     keyboard = [
         [InlineKeyboardButton("🔄 Repetir Selfie", callback_data="repetir_foto_inicio")],
         [InlineKeyboardButton("📝📋 Continuar con ATS/PETAR", callback_data="continuar_ats")],
