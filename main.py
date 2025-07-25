@@ -422,7 +422,7 @@ async def foto_ingreso(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def manejar_repeticion_fotos(update: Update, context: ContextTypes.DEFAULT_TYPE):
     try:
         query = update.callback_query
-        if not query:  # Aseguramos que es callback
+        if not query:
             logger.warning("[DEBUG] manejar_repeticion_fotos llamado sin callback_query.")
             return
 
@@ -430,46 +430,40 @@ async def manejar_repeticion_fotos(update: Update, context: ContextTypes.DEFAULT
         await query.answer()
         logger.info(f"[DEBUG] manejar_repeticion_fotos: chat_id={chat_id}, data={query.data}")
 
+        # Teclado genérico para ATS
+        ats_keyboard = InlineKeyboardMarkup([
+            [InlineKeyboardButton("✅ ATS/PETAR Sí", callback_data="ats_si")],
+            [InlineKeyboardButton("❌ ATS/PETAR No", callback_data="ats_no")],
+        ])
+
         # --- SELFIE INICIO ---
         if query.data == "repetir_foto_inicio":
-            user_data[chat_id]["paso"] = 1
+            user_data.setdefault(chat_id, {})["paso"] = 1
             logger.info(f"[DEBUG] Paso cambiado a 1 (selfie inicio) para chat {chat_id}")
             await query.edit_message_text(
                 "📸 Envía nuevamente tu *selfie de inicio*.", parse_mode="Markdown"
             )
 
         elif query.data == "continuar_ats":
-            keyboard = [
-                [InlineKeyboardButton("✅ ATS/PETAR Sí", callback_data="ats_si")],
-                [InlineKeyboardButton("❌ ATS/PETAR No", callback_data="ats_no")],
-            ]
-            await query.edit_message_text(
-                "¿Realizaste ATS/PETAR?", reply_markup=InlineKeyboardMarkup(keyboard)
-            )
+            await query.edit_message_text("¿Realizaste ATS/PETAR?", reply_markup=ats_keyboard)
 
         # --- ATS/PETAR ---
         elif query.data == "repetir_foto_ats":
-            keyboard = [
-                [InlineKeyboardButton("✅ ATS/PETAR Sí", callback_data="ats_si")],
-                [InlineKeyboardButton("❌ ATS/PETAR No", callback_data="ats_no")],
-            ]
-            await query.edit_message_text(
-                "¿Realizaste ATS/PETAR?",
-                reply_markup=InlineKeyboardMarkup(keyboard)
-            )
+            await query.edit_message_text("¿Realizaste ATS/PETAR?", reply_markup=ats_keyboard)
 
         elif query.data == "continuar_post_ats":
-            user_data[chat_id]["paso"] = "selfie_salida"  # Marca como listo para salir
+            user_data.setdefault(chat_id, {})["paso"] = "selfie_salida"
             logger.info(f"[DEBUG] Paso cambiado a 'selfie_salida' para chat {chat_id}")
             await query.edit_message_text(
                 "¡Excelente! 🎉 Ya estás listo para comenzar.\n\n"
-                "💪*Puedes iniciar tu jornada.*💪",
+                "💪 *Puedes iniciar tu jornada.* 💪",
                 parse_mode="Markdown"
             )
 
         # --- SELFIE SALIDA ---
         elif query.data == "repetir_foto_salida":
-            if "selfie_salida" in user_data.get(chat_id, {}):
+            user_data.setdefault(chat_id, {})
+            if "selfie_salida" in user_data[chat_id]:
                 del user_data[chat_id]["selfie_salida"]
             user_data[chat_id]["paso"] = "selfie_salida"
             logger.info(f"[DEBUG] Repetir selfie salida, paso='selfie_salida' para chat {chat_id}")
@@ -497,6 +491,7 @@ async def handle_ats_petar(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         nombre_grupo = query.message.chat.title
         archivo_drive = buscar_archivo_en_drive(f"{nombre_grupo}.xlsx")
+        loop = asyncio.get_running_loop()
 
         # ----------------- RESPUESTA ATS SI -----------------
         if query.data == "ats_si":
@@ -509,10 +504,8 @@ async def handle_ats_petar(update: Update, context: ContextTypes.DEFAULT_TYPE):
             return
 
         # ----------------- RESPUESTA ATS NO -----------------
-        loop = asyncio.get_running_loop()
-
-        # Si no existe el archivo, lo creamos con la base de datos
         if not archivo_drive:
+            # Si no existe el archivo, lo creamos con la base
             data = generar_base_data(
                 user_data.get(chat_id, {}).get("cuadrilla", ""),
                 user_data.get(chat_id, {}).get("tipo", "")
@@ -521,7 +514,6 @@ async def handle_ats_petar(update: Update, context: ContextTypes.DEFAULT_TYPE):
             archivo_drive = buscar_archivo_en_drive(f"{nombre_grupo}.xlsx")
             logger.info(f"[DEBUG] Archivo {nombre_grupo}.xlsx creado para ATS=No")
 
-        # Actualizar el ATS a "No" en la última fila
         if archivo_drive:
             df = await loop.run_in_executor(None, descargar_excel, archivo_drive["id"])
             if not df.empty:
@@ -534,7 +526,6 @@ async def handle_ats_petar(update: Update, context: ContextTypes.DEFAULT_TYPE):
         user_data[chat_id]["paso"] = "selfie_salida"
         logger.info(f"[DEBUG] Paso cambiado a 'selfie_salida' para chat {chat_id}")
 
-        # Mostrar mensaje de alerta
         keyboard = [
             [InlineKeyboardButton("📸 Enviar foto de ATS/PETAR de todas formas", callback_data="reenviar_ats")]
         ]
@@ -552,6 +543,7 @@ async def handle_ats_petar(update: Update, context: ContextTypes.DEFAULT_TYPE):
         logger.error(f"[ERROR] handle_ats_petar: {e}")
         if update.callback_query:
             await update.callback_query.message.reply_text("❌ Error interno en ATS/PETAR.")
+
 
 # -------------------- BREAK OUT --------------------
 async def breakout(update: Update, context: ContextTypes.DEFAULT_TYPE):
