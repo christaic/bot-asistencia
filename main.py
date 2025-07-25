@@ -157,51 +157,42 @@ def obtener_nombre_grupo_y_archivo(update: Update):
 
 
 # --------------CREAR O ACTUALIZAR EXCEL------------------
-def crear_o_actualizar_excel(update: Update, data):
-    nombre_archivo, nombre_limpio = obtener_nombre_grupo_y_archivo(update)
-    logger.info(f"[DEBUG] Procesando archivo: {nombre_archivo}, con datos: {data}")
+def crear_o_actualizar_excel(update: Update, data: dict):
+    try:
+        nombre_grupo = update.effective_chat.title
+        nombre_archivo = f"{nombre_grupo}.xlsx"
+        logger.info(f"[DEBUG] Procesando archivo: {nombre_archivo} con datos: {data}")
 
-    archivo_drive = buscar_archivo_en_drive(nombre_archivo)
-
-    if archivo_drive:
-        # Descargar el archivo existente
-        df_existente = descargar_excel(archivo_drive["id"])
-        logger.info(f"[DEBUG] Archivo existente encontrado con {len(df_existente)} filas.")
-        
-        # Actualizar última fila si está vacía o agregar una nueva
-        if df_existente.empty or not df_existente.iloc[-1].any():
-            df = pd.DataFrame([data])
+        archivo_drive = buscar_archivo_en_drive(nombre_archivo)
+        if archivo_drive:
+            logger.info(f"[DEBUG] Archivo existente en Drive: {archivo_drive['name']}")
+            df = descargar_excel(archivo_drive['id'])
+            df = pd.concat([df, pd.DataFrame([data])], ignore_index=True)
+            subir_excel(archivo_drive['id'], df)
+            logger.info(f"[DEBUG] Archivo {nombre_archivo} actualizado en Drive.")
         else:
-            df = pd.concat([df_existente, pd.DataFrame([data])], ignore_index=True)
-        
-        subir_excel(archivo_drive["id"], df)
-        logger.info(f"[DEBUG] Fila actualizada/agregada en {nombre_archivo}")
-    else:
-        # Crear archivo nuevo con una fila inicial
-        df = pd.DataFrame([data])
-        buffer = io.BytesIO()
-        df.to_excel(buffer, index=False)
-        buffer.seek(0)
-        media = MediaIoBaseUpload(
-            buffer, mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-        )
-        file_metadata = {"name": nombre_archivo, "parents": [MAIN_FOLDER_ID]}
-        drive_service.files().create(
-            body=file_metadata,
-            media_body=media,
-            fields="id",
-            supportsAllDrives=True
-        ).execute()
-        logger.info(f"[DEBUG] Archivo nuevo creado: {nombre_archivo}")
+            logger.info(f"[DEBUG] Archivo no encontrado, creando {nombre_archivo}")
+            df = pd.DataFrame([data])
+            buffer = io.BytesIO()
+            df.to_excel(buffer, index=False)
+            buffer.seek(0)
+            drive_service.files().create(
+                media_body=MediaIoBaseUpload(buffer, mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'),
+                body={'name': nombre_archivo, 'parents': [DRIVE_FOLDER_ID]}
+            ).execute()
+            logger.info(f"[DEBUG] Archivo {nombre_archivo} creado en Drive.")
+    except Exception as e:
+        logger.error(f"[ERROR] crear_o_actualizar_excel: {e}")
+
 
 # -------------------- ESTRUCTURA DE FILA --------------------
 def generar_base_data(cuadrilla, tipo_trabajo):
     ahora = datetime.now(LIMA_TZ)
     return {
-        "MES": ahora.strftime("%B"),
-        "FECHA": ahora.strftime("%Y-%m-%d"),
-        "CUADRILLA": cuadrilla,
-        "TIPO DE TRABAJO": tipo_trabajo,
+        "MES": str(ahora.strftime("%B")),
+        "FECHA": str(ahora.strftime("%Y-%m-%d")),
+        "CUADRILLA": str(cuadrilla),
+        "TIPO DE TRABAJO": str(tipo_trabajo),
         "ATS/PETAR": "",
         "HORA INGRESO": "",
         "HORA BREAK OUT": "",
@@ -212,6 +203,7 @@ def generar_base_data(cuadrilla, tipo_trabajo):
         "AVANCE": "",
         "OBSERVACIÓN": "",
     }
+
 
 # -------------------- ESTADOS TEMPORALES --------------------
 user_data = {}
