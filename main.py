@@ -477,6 +477,37 @@ async def manejar_repeticion_fotos(update: Update, context: ContextTypes.DEFAULT
         if update.callback_query:
             await update.callback_query.message.reply_text("❌ Error interno al manejar repetición de fotos.")
 
+# -------------------- FOTO ATS/PETAR --------------------
+async def foto_ats(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    chat_id = update.effective_chat.id
+    if not mensaje_es_para_bot(update, context):
+        return
+
+    if chat_id not in user_data or user_data[chat_id].get("paso") != 2:
+        return
+    if not await validar_contenido(update, "foto"):
+        return
+
+    user_data[chat_id]["ats_foto"] = "OK"  # Marca que ATS/PETAR tiene foto
+
+    nombre_grupo = update.effective_chat.title
+    archivo_drive = buscar_archivo_en_drive(f"{nombre_grupo}.xlsx")
+    if archivo_drive:
+        df = descargar_excel(archivo_drive["id"])
+        df.at[df.index[-1], "ATS/PETAR"] = "Sí"  # Marca Sí en la última fila
+        subir_excel(archivo_drive["id"], df)
+
+    keyboard = [
+        [InlineKeyboardButton("🔄 Repetir Foto ATS/PETAR", callback_data="repetir_foto_ats")],
+        [InlineKeyboardButton("➡️ Continuar a jornada", callback_data="continuar_post_ats")],
+    ]
+    await update.message.reply_text(
+        "¿Es correcta la foto del ATS/PETAR?",
+        reply_markup=InlineKeyboardMarkup(keyboard)
+    )
+
+
+
 # -------------------- HANDLE ATS/PETAR --------------------
 async def handle_ats_petar(update: Update, context: ContextTypes.DEFAULT_TYPE):
     try:
