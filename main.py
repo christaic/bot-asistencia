@@ -445,7 +445,7 @@ async def manejar_repeticion_fotos(update: Update, context: ContextTypes.DEFAULT
             logger.info(f"[DEBUG] Paso cambiado a 'selfie_salida' para chat {chat_id}")
             await query.edit_message_text(
                 "¡Excelente! 🎉 Ya estás listo para comenzar.\n\n"
-                "*Escribe /start @VTetiquetado_bot* para iniciar tu jornada.",
+                "💪*Puedes iniciar tu jornada.*💪",
                 parse_mode="Markdown"
             )
 
@@ -518,7 +518,7 @@ async def handle_ats_petar(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "✅ Previenes accidentes.\n"
             "✅ Proteges tu vida y la de tu equipo.\n\n"
             "¡La seguridad empieza contigo!\n"
-            "**Escribe /start @VTetiquetado_bot** para iniciar tu jornada.",
+            "💪*Puedes iniciar tu jornada.*💪",
             parse_mode="Markdown",
             reply_markup=InlineKeyboardMarkup(keyboard)
         )
