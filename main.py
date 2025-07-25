@@ -340,7 +340,8 @@ async def handle_nombre_cuadrilla(update: Update, context: ContextTypes.DEFAULT_
 # ------------------ HANDLE TIPO TRABAJO ------------------ #
 async def handle_tipo_trabajo(update: Update, context: ContextTypes.DEFAULT_TYPE):
     try:
-        if not mensaje_es_para_bot(update, context):
+        query = update.callback_query
+        if not query:  # Aseguramos que es callback
             return
 
         query = update.callback_query
@@ -401,100 +402,131 @@ async def foto_ingreso(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 # -------------------- MANEJAR REPETICIÓN DE FOTOS --------------------
 async def manejar_repeticion_fotos(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    chat_id = update.effective_chat.id  # <-- Definir aquí
-    if not mensaje_es_para_bot(update, context):
-        return
-    query = update.callback_query
-    chat_id = query.message.chat.id
-    await query.answer()
+    try:
+        query = update.callback_query
+        if not query:  # Aseguramos que es callback
+            logger.warning("[DEBUG] manejar_repeticion_fotos llamado sin callback_query.")
+            return
 
-    # --- SELFIE INICIO ---
-    if query.data == "repetir_foto_inicio":
-        user_data[chat_id]["paso"] = 1
-        await query.edit_message_text(
-            "📸 Envía nuevamente tu *selfie de inicio*.", parse_mode="Markdown"
-        )
+        chat_id = query.message.chat.id
+        await query.answer()
+        logger.info(f"[DEBUG] manejar_repeticion_fotos: chat_id={chat_id}, data={query.data}")
 
-    elif query.data == "continuar_ats":
-        keyboard = [
-            [InlineKeyboardButton("✅ ATS/PETAR Sí", callback_data="ats_si")],
-            [InlineKeyboardButton("❌ ATS/PETAR No", callback_data="ats_no")],
-        ]
-        await query.edit_message_text(
-            "¿Realizaste ATS/PETAR?", reply_markup=InlineKeyboardMarkup(keyboard)
-        )
+        # --- SELFIE INICIO ---
+        if query.data == "repetir_foto_inicio":
+            user_data[chat_id]["paso"] = 1
+            logger.info(f"[DEBUG] Paso cambiado a 1 (selfie inicio) para chat {chat_id}")
+            await query.edit_message_text(
+                "📸 Envía nuevamente tu *selfie de inicio*.", parse_mode="Markdown"
+            )
 
-    # --- ATS/PETAR ---
-    elif query.data == "repetir_foto_ats":
-        keyboard = [
-            [InlineKeyboardButton("✅ ATS/PETAR Sí", callback_data="ats_si")],
-            [InlineKeyboardButton("❌ ATS/PETAR No", callback_data="ats_no")],
-        ]
-        await query.edit_message_text(
-            "¿Realizaste ATS/PETAR?",
-            reply_markup=InlineKeyboardMarkup(keyboard)
-        )
+        elif query.data == "continuar_ats":
+            keyboard = [
+                [InlineKeyboardButton("✅ ATS/PETAR Sí", callback_data="ats_si")],
+                [InlineKeyboardButton("❌ ATS/PETAR No", callback_data="ats_no")],
+            ]
+            await query.edit_message_text(
+                "¿Realizaste ATS/PETAR?", reply_markup=InlineKeyboardMarkup(keyboard)
+            )
 
+        # --- ATS/PETAR ---
+        elif query.data == "repetir_foto_ats":
+            keyboard = [
+                [InlineKeyboardButton("✅ ATS/PETAR Sí", callback_data="ats_si")],
+                [InlineKeyboardButton("❌ ATS/PETAR No", callback_data="ats_no")],
+            ]
+            await query.edit_message_text(
+                "¿Realizaste ATS/PETAR?",
+                reply_markup=InlineKeyboardMarkup(keyboard)
+            )
 
-    elif query.data == "continuar_post_ats":
-        user_data[chat_id]["paso"] = "selfie_salida" # Marca como listo para salir
-        await query.edit_message_text(
-            "¡Excelente! 🎉 Ya estás listo para comenzar.\n\n"
-            "*Escribe /start @VTetiquetado_bot* para iniciar tu jornada.",
-            parse_mode="Markdown"
-        )
-    
-    # --- SELFIE SALIDA ---
-    elif query.data == "repetir_foto_salida":
-        if "selfie_salida" in user_data.get(chat_id, {}):
-            del user_data[chat_id]["selfie_salida"]
-        user_data[chat_id]["paso"] = "selfie_salida"
-        await query.edit_message_text(
-            "📸 Por favor, envía nuevamente tu *selfie de salida*.",
-            parse_mode="Markdown"
-        )
+        elif query.data == "continuar_post_ats":
+            user_data[chat_id]["paso"] = "selfie_salida"  # Marca como listo para salir
+            logger.info(f"[DEBUG] Paso cambiado a 'selfie_salida' para chat {chat_id}")
+            await query.edit_message_text(
+                "¡Excelente! 🎉 Ya estás listo para comenzar.\n\n"
+                "*Escribe /start @VTetiquetado_bot* para iniciar tu jornada.",
+                parse_mode="Markdown"
+            )
+
+        # --- SELFIE SALIDA ---
+        elif query.data == "repetir_foto_salida":
+            if "selfie_salida" in user_data.get(chat_id, {}):
+                del user_data[chat_id]["selfie_salida"]
+            user_data[chat_id]["paso"] = "selfie_salida"
+            logger.info(f"[DEBUG] Repetir selfie salida, paso='selfie_salida' para chat {chat_id}")
+            await query.edit_message_text(
+                "📸 Por favor, envía nuevamente tu *selfie de salida*.",
+                parse_mode="Markdown"
+            )
+
+    except Exception as e:
+        logger.error(f"[ERROR] manejar_repeticion_fotos: {e}")
+        if update.callback_query:
+            await update.callback_query.message.reply_text("❌ Error interno al manejar repetición de fotos.")
 
 # -------------------- ATS/PETAR --------------------
 async def handle_ats_petar(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    chat_id = update.effective_chat.id  # <-- Definir aquí
-    if not mensaje_es_para_bot(update, context):
-        return
-    query = update.callback_query
-    chat_id = query.message.chat.id
-    await query.answer()
+    try:
+        query = update.callback_query
+        if not query:  # Aseguramos que es callback
+            logger.warning("[DEBUG] handle_ats_petar llamado sin callback_query.")
+            return
 
-    nombre_grupo = query.message.chat.title
-    archivo_drive = buscar_archivo_en_drive(f"{nombre_grupo}.xlsx")
+        chat_id = query.message.chat.id
+        await query.answer()
+        logger.info(f"[DEBUG] handle_ats_petar: chat_id={chat_id}, data={query.data}")
 
-    # Si respondió SÍ
-    if query.data == "ats_si":
-        user_data[chat_id]["paso"] = 2
+        nombre_grupo = query.message.chat.title
+        archivo_drive = buscar_archivo_en_drive(f"{nombre_grupo}.xlsx")
+
+        # Si respondió SÍ
+        if query.data == "ats_si":
+            user_data[chat_id]["paso"] = 2
+            logger.info(f"[DEBUG] Paso cambiado a 2 (espera foto ATS/PETAR) para chat {chat_id}")
+            await query.edit_message_text(
+                "📸 *Por favor, envía la foto del ATS/PETAR para continuar.*",
+                parse_mode="Markdown"
+            )
+            return
+
+        # Si respondió NO: Guardar en el Excel
+        if not archivo_drive:
+            # Crear registro si no existe
+            data = generar_base_data(
+                user_data.get(chat_id, {}).get("cuadrilla", ""),
+                user_data.get(chat_id, {}).get("tipo", "")
+            )
+            crear_o_actualizar_excel(update, data)
+            archivo_drive = buscar_archivo_en_drive(f"{nombre_grupo}.xlsx")
+            logger.info(f"[DEBUG] Archivo {nombre_grupo}.xlsx creado para ATS=No")
+
+        if archivo_drive:
+            df = descargar_excel(archivo_drive["id"])
+            df.at[df.index[-1], "ATS/PETAR"] = "No"
+            subir_excel(archivo_drive["id"], df)
+            logger.info(f"[DEBUG] ATS/PETAR='No' registrado en {nombre_grupo}.xlsx")
+
+        user_data[chat_id]["paso"] = "selfie_salida"
+        logger.info(f"[DEBUG] Paso cambiado a 'selfie_salida' para chat {chat_id}")
+
+        keyboard = [
+            [InlineKeyboardButton("📸 Enviar foto de ATS/PETAR de todas formas", callback_data="reenviar_ats")]
+        ]
         await query.edit_message_text(
-            "📸 *Por favor, envía la foto del ATS/PETAR para continuar.*",
-            parse_mode="Markdown"
+            "⚠️ *Recuerda siempre enviar ATS/PETAR antes del inicio de cada jornada.* ⚠️\n\n"
+            "✅ Previenes accidentes.\n"
+            "✅ Proteges tu vida y la de tu equipo.\n\n"
+            "¡La seguridad empieza contigo!\n"
+            "**Escribe /start @VTetiquetado_bot** para iniciar tu jornada.",
+            parse_mode="Markdown",
+            reply_markup=InlineKeyboardMarkup(keyboard)
         )
-        return
 
-    # Si respondió NO: Guardar en el Excel
-    if archivo_drive:
-        df = descargar_excel(archivo_drive["id"])
-        df.at[df.index[-1], "ATS/PETAR"] = "No"
-        subir_excel(archivo_drive["id"], df)
-
-    user_data[chat_id]["paso"] = "selfie_salida"
-
-    keyboard = [
-        [InlineKeyboardButton("📸 Enviar foto de ATS/PETAR de todas formas", callback_data="reenviar_ats")]
-    ]
-    await query.edit_message_text(
-        "⚠️ *Recuerda siempre enviar ATS/PETAR antes del inicio de cada jornada.* ⚠️\n\n"
-        "✅ Previenes accidentes.\n"
-        "✅ Proteges tu vida y la de tu equipo.\n\n"
-        "¡La seguridad empieza contigo!\n"
-        "**Escribe /start @VTetiquetado_bot** para iniciar tu jornada.",
-        parse_mode="Markdown",
-        reply_markup=InlineKeyboardMarkup(keyboard)
-    )
+    except Exception as e:
+        logger.error(f"[ERROR] handle_ats_petar: {e}")
+        if update.callback_query:
+            await update.callback_query.message.reply_text("❌ Error interno en ATS/PETAR.")
 
 # -------------------- FOTO ATS/PETAR --------------------
 async def foto_ats(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -579,26 +611,39 @@ async def salida(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 # -------------------- CALLBACK SALIDA --------------------
 async def manejar_salida_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    chat_id = update.effective_chat.id  # <-- Definir aquí
-    query = update.callback_query
-    chat_id = query.message.chat.id
-    await query.answer()
+    try:
+        query = update.callback_query
+        if not query:  # Aseguramos que es callback
+            logger.warning("[DEBUG] manejar_salida_callback llamado sin callback_query.")
+            return
 
-    if query.data == "repetir_foto_salida":
-        user_data[chat_id]["paso"] = "selfie_salida"
-        await query.edit_message_text(
-            "🔄 Por favor, envía nuevamente tu *selfie de salida*.",
-            parse_mode="Markdown"
-        )
+        chat_id = query.message.chat.id
+        await query.answer()
+        logger.info(f"[DEBUG] manejar_salida_callback: chat_id={chat_id}, data={query.data}, user_data={user_data.get(chat_id)}")
 
-    elif query.data == "finalizar_salida":
-        user_data[chat_id]["paso"] = None
-        await query.edit_message_text(
-            "💪 *¡Buen trabajo! Jornada finalizada.*\n\n"
-            "👏 *Gracias por tu apoyo hoy.*\n\n"
-            "🫡 ¡Cambio y fuera! 🫡",
-            parse_mode="Markdown"
-        )
+        if query.data == "repetir_foto_salida":
+            user_data[chat_id]["paso"] = "selfie_salida"
+            logger.info(f"[DEBUG] Paso cambiado a 'selfie_salida' para chat {chat_id}")
+            await query.edit_message_text(
+                "🔄 Por favor, envía nuevamente tu *selfie de salida*.",
+                parse_mode="Markdown"
+            )
+
+        elif query.data == "finalizar_salida":
+            user_data[chat_id]["paso"] = None
+            logger.info(f"[DEBUG] Jornada finalizada para chat {chat_id}")
+            await query.edit_message_text(
+                "💪 *¡Buen trabajo! Jornada finalizada.*\n\n"
+                "👏 *Gracias por tu apoyo hoy.*\n\n"
+                "🫡 ¡Cambio y fuera! 🫡",
+                parse_mode="Markdown"
+            )
+
+    except Exception as e:
+        logger.error(f"[ERROR] manejar_salida_callback: {e}")
+        if update.callback_query:
+            await update.callback_query.message.reply_text("❌ Error interno en la salida.")
+
 # -------------------- SELFIE SALIDA --------------------
 async def selfie_salida(update: Update, context: ContextTypes.DEFAULT_TYPE):
     chat_id = update.effective_chat.id  # <-- Definir aquí
