@@ -287,6 +287,9 @@ async def handle_nombre_cuadrilla(update: Update, context: ContextTypes.DEFAULT_
         )
         loop = asyncio.get_running_loop()
         await loop.run_in_executor(None, crear_o_actualizar_excel, update, data)
+       
+        # 🔹 Cambiamos el paso para que el bot sepa que ahora espera tipo de trabajo
+        user_data[chat_id]["paso"] = "tipo_trabajo"
 
         # Preguntar por tipo de trabajo
         keyboard = [
@@ -338,6 +341,9 @@ async def handle_tipo_trabajo(update: Update, context: ContextTypes.DEFAULT_TYPE
         )
         loop = asyncio.get_running_loop()
         await loop.run_in_executor(None, crear_o_actualizar_excel, update, data)
+
+        # 🔹 Cambiamos el paso para que el bot sepa que ahora espera tipo de trabajo
+        user_data[chat_id]["paso"] = 1  # Ahora espera selfie de inicio
 
     await query.edit_message_text(
         f"Tipo de trabajo seleccionado: *{tipo}*\n\n📸 Ahora envía tu selfie de inicio.",
@@ -410,7 +416,7 @@ async def manejar_repeticion_fotos(update: Update, context: ContextTypes.DEFAULT
 
 
     elif query.data == "continuar_post_ats":
-        user_data[chat_id]["paso"] = 3  # Marca como listo para salir
+        user_data[chat_id]["paso"] = "selfie_salida" # Marca como listo para salir
         await query.edit_message_text(
             "¡Excelente! 🎉 Ya estás listo para comenzar.\n\n"
             "*Escribe /start @VTetiquetado_bot* para iniciar tu jornada.",
@@ -454,11 +460,13 @@ async def handle_ats_petar(update: Update, context: ContextTypes.DEFAULT_TYPE):
         df.at[df.index[-1], "ATS/PETAR"] = "No"
         subir_excel(archivo_drive["id"], df)
 
+    user_data[chat_id]["paso"] = "selfie_salida"
+
     keyboard = [
         [InlineKeyboardButton("📸 Enviar foto de ATS/PETAR de todas formas", callback_data="reenviar_ats")]
     ]
     await query.edit_message_text(
-        "⚠️ *Recuerda enviar ATS al iniciar cada jornada.* ⚠️\n\n"
+        "⚠️ *Recuerda siempre enviar ATS/PETAR antes del inicio de cada jornada.* ⚠️\n\n"
         "✅ Previenes accidentes.\n"
         "✅ Proteges tu vida y la de tu equipo.\n\n"
         "¡La seguridad empieza contigo!\n"
