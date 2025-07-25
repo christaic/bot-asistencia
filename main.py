@@ -240,24 +240,28 @@ async def ingreso(update: Update, context: ContextTypes.DEFAULT_TYPE):
 # -------------------- NOMBRE CUADRILLA --------------------
 async def nombre_cuadrilla(update: Update, context: ContextTypes.DEFAULT_TYPE):
     try:
+        logger.info("[DEBUG] Entrando en nombre_cuadrilla...")
         if not mensaje_es_para_bot(update, context):
+            logger.info("[DEBUG] mensaje_es_para_bot devolvió False.")
             return
 
         chat_id = update.effective_chat.id
+        logger.info(f"[DEBUG] chat_id = {chat_id}")
 
         if chat_id not in user_data:
             user_data[chat_id] = {"paso": 0}
-            logger.info(f"[DEBUG] Nuevo chat {chat_id}, paso inicializado a 0")
+            logger.info(f"[DEBUG] user_data[{chat_id}] inicializado en 0")
 
         if user_data[chat_id].get("paso") != 0:
-            logger.info(f"[DEBUG] Mensaje ignorado, paso actual: {user_data[chat_id]}")
+            logger.info(f"[DEBUG] Paso no es 0. Paso actual: {user_data[chat_id].get('paso')}")
             return
 
         if not await validar_contenido(update, "texto"):
+            logger.info("[DEBUG] validar_contenido devolvió False.")
             return
 
         user_data[chat_id]["cuadrilla"] = update.message.text.strip()
-        logger.info(f"[DEBUG] Cuadrilla recibida: {user_data[chat_id]}")
+        logger.info(f"[DEBUG] Cuadrilla recibida: {user_data[chat_id]['cuadrilla']}")
 
         keyboard = [
             [InlineKeyboardButton("✅ Confirma el nombre de tu cuadrilla", callback_data="confirmar_nombre")],
@@ -268,9 +272,11 @@ async def nombre_cuadrilla(update: Update, context: ContextTypes.DEFAULT_TYPE):
             parse_mode="Markdown",
             reply_markup=InlineKeyboardMarkup(keyboard),
         )
+        logger.info("[DEBUG] Botones enviados correctamente.")
     except Exception as e:
         logger.error(f"[ERROR] nombre_cuadrilla: {e}")
         await update.message.reply_text("❌ Error interno al procesar el nombre de cuadrilla.")
+
 
 # ------------------ HANDLE NOMBRE CUADRILLA ------------------ #
 async def handle_nombre_cuadrilla(update: Update, context: ContextTypes.DEFAULT_TYPE):
