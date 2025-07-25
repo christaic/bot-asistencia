@@ -158,28 +158,41 @@ def obtener_nombre_grupo_y_archivo(update: Update):
 
 # --------------CREAR O ACTUALIZAR EXCEL------------------
 def crear_o_actualizar_excel(update: Update, data):
-    nombre_grupo, nombre_archivo = obtener_nombre_grupo_y_archivo(update)
+    nombre_archivo, nombre_limpio = obtener_nombre_grupo_y_archivo(update)
     logger.info(f"[DEBUG] Procesando archivo: {nombre_archivo}, con datos: {data}")
-    
+
     archivo_drive = buscar_archivo_en_drive(nombre_archivo)
 
     if archivo_drive:
-        df = descargar_excel(archivo_drive["id"])
-        # Solo añade fila si la última fila tiene fecha diferente (nueva jornada)
-        if df.empty or df.iloc[-1]["FECHA"] != data["FECHA"]:
+        # Descargar el archivo existente
+        df_existente = descargar_excel(archivo_drive["id"])
+        logger.info(f"[DEBUG] Archivo existente encontrado con {len(df_existente)} filas.")
+        
+        # Actualizar última fila si está vacía o agregar una nueva
+        if df_existente.empty or not df_existente.iloc[-1].any():
+            df = pd.DataFrame([data])
+        else:
             df = pd.concat([df_existente, pd.DataFrame([data])], ignore_index=True)
-            subir_excel(archivo_drive["id"], df)
+        
+        subir_excel(archivo_drive["id"], df)
+        logger.info(f"[DEBUG] Fila actualizada/agregada en {nombre_archivo}")
     else:
+        # Crear archivo nuevo con una fila inicial
         df = pd.DataFrame([data])
         buffer = io.BytesIO()
         df.to_excel(buffer, index=False)
         buffer.seek(0)
-        media = MediaIoBaseUpload(buffer, mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+        media = MediaIoBaseUpload(
+            buffer, mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        )
         file_metadata = {"name": nombre_archivo, "parents": [MAIN_FOLDER_ID]}
         drive_service.files().create(
-            body=file_metadata, media_body=media, fields="id", supportsAllDrives=True
+            body=file_metadata,
+            media_body=media,
+            fields="id",
+            supportsAllDrives=True
         ).execute()
-
+        logger.info(f"[DEBUG] Archivo nuevo creado: {nombre_archivo}")
 
 # -------------------- ESTRUCTURA DE FILA --------------------
 def generar_base_data(cuadrilla, tipo_trabajo):
