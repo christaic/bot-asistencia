@@ -298,8 +298,9 @@ async def nombre_cuadrilla(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 # ------------------ HANDLE NOMBRE CUADRILLA ------------------ #
 async def handle_nombre_cuadrilla(update: Update, context: ContextTypes.DEFAULT_TYPE):
+logger.info(f"[DEBUG] Llego al handler de nombre_cuadrilla con data = {update.callback_query.data}")
     try:
-        if not mensaje_es_para_bot(update, context):
+        if not query:  # No es un callback
             return
 
         query = update.callback_query
