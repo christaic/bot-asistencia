@@ -37,19 +37,37 @@ def chat_permitido(chat_id: int) -> bool:
 # -------------------- MENSAJE ES PARA BOT --------------------
 def mensaje_es_para_bot(update: Update, context: ContextTypes.DEFAULT_TYPE) -> bool:
     """
-    Verifica si el mensaje está dirigido al bot, ya sea por etiquetado o respuesta directa.
+    Verifica si el mensaje está dirigido al bot:
+    - En grupos: si está etiquetado con un comando (/comando @Bot) o si responden a un mensaje del bot.
+    - En privado: siempre responde.
     """
-    if not update.message or not update.message.text:
+    if not update.message:
         return False
 
-    if update.message.chat.type in ['group', 'supergroup']:
-        texto = update.message.text.strip().lower()
-        bot_username = context.bot.username.lower()
-        # Verifica que el mensaje contenga el comando dirigido al bot (por ejemplo /ingreso @TuBot)
-        return texto.startswith(f"/") and (f" @{bot_username}" in texto)
+    chat_type = update.message.chat.type
+    bot_username = context.bot.username.lower()
+    texto = (update.message.text or "").strip().lower()
 
     # En privado siempre responde
-    return True
+    if chat_type == "private":
+        return True
+
+    # En grupo o supergrupo:
+    if chat_type in ["group", "supergroup"]:
+        # 1. Si es un comando con mención (ejemplo: /ingreso @Bot)
+        if texto.startswith("/") and f"@{bot_username}" in texto:
+            return True
+
+        # 2. Si el mensaje es respuesta a un mensaje enviado por el bot
+        if update.message.reply_to_message and \
+           update.message.reply_to_message.from_user.username and \
+           update.message.reply_to_message.from_user.username.lower() == bot_username:
+            return True
+
+        return False
+
+    return False
+
 
 # Carga de credenciales desde variable de entorno
 CREDENTIALS_JSON = os.environ["GOOGLE_CREDENTIALS_JSON"]
