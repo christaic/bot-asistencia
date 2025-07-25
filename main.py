@@ -159,7 +159,8 @@ def obtener_nombre_grupo_y_archivo(update: Update):
 # --------------CREAR O ACTUALIZAR EXCEL------------------
 def crear_o_actualizar_excel(update: Update, data):
     nombre_grupo, nombre_archivo = obtener_nombre_grupo_y_archivo(update)
-    logger.info(f"[DEBUG] Procesando archivo: {nombre_archivo}, con datos: {data}"
+    logger.info(f"[DEBUG] Procesando archivo: {nombre_archivo}, con datos: {data}")
+    
     archivo_drive = buscar_archivo_en_drive(nombre_archivo)
 
     if archivo_drive:
