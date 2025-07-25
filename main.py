@@ -239,116 +239,113 @@ async def ingreso(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 # -------------------- NOMBRE CUADRILLA --------------------
 async def nombre_cuadrilla(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if not mensaje_es_para_bot(update, context):
-        return
+    try:
+        if not mensaje_es_para_bot(update, context):
+            return
 
-    chat_id = update.effective_chat.id
+        chat_id = update.effective_chat.id
 
-    # Inicializar user_data para el chat si no existe
-    if chat_id not in user_data:
-        user_data[chat_id] = {"paso": 0}
+        if chat_id not in user_data:
+            user_data[chat_id] = {"paso": 0}
+            logger.info(f"[DEBUG] Nuevo chat {chat_id}, paso inicializado a 0")
 
-    # Validamos que estemos en el paso correcto
-    if user_data[chat_id].get("paso") != 0:
-        return
+        if user_data[chat_id].get("paso") != 0:
+            logger.info(f"[DEBUG] Mensaje ignorado, paso actual: {user_data[chat_id]}")
+            return
 
-    if not await validar_contenido(update, "texto"):
-        return
+        if not await validar_contenido(update, "texto"):
+            return
 
-    # Guardamos el nombre ingresado
-    user_data[chat_id]["cuadrilla"] = update.message.text.strip()
+        user_data[chat_id]["cuadrilla"] = update.message.text.strip()
+        logger.info(f"[DEBUG] Cuadrilla recibida: {user_data[chat_id]}")
 
-    # Mostramos confirmación
-    keyboard = [
-        [InlineKeyboardButton("✅ Confirma el nombre de tu cuadrilla", callback_data="confirmar_nombre")],
-        [InlineKeyboardButton("✏️ Corregir nombre", callback_data="corregir_nombre")],
-    ]
-    await update.message.reply_text(
-        f"Has ingresado la cuadrilla:\n*{user_data[chat_id]['cuadrilla']}*\n\n¿Es correcto?",
-        parse_mode="Markdown",
-        reply_markup=InlineKeyboardMarkup(keyboard),
-    )
-
+        keyboard = [
+            [InlineKeyboardButton("✅ Confirma el nombre de tu cuadrilla", callback_data="confirmar_nombre")],
+            [InlineKeyboardButton("✏️ Corregir nombre", callback_data="corregir_nombre")],
+        ]
+        await update.message.reply_text(
+            f"Has ingresado la cuadrilla:\n*{user_data[chat_id]['cuadrilla']}*\n\n¿Es correcto?",
+            parse_mode="Markdown",
+            reply_markup=InlineKeyboardMarkup(keyboard),
+        )
+    except Exception as e:
+        logger.error(f"[ERROR] nombre_cuadrilla: {e}")
+        await update.message.reply_text("❌ Error interno al procesar el nombre de cuadrilla.")
 
 # ------------------ HANDLE NOMBRE CUADRILLA ------------------ #
 async def handle_nombre_cuadrilla(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if not mensaje_es_para_bot(update, context):
-        return
+    try:
+        if not mensaje_es_para_bot(update, context):
+            return
 
-    query = update.callback_query
-    chat_id = query.message.chat.id
-    await query.answer()
+        query = update.callback_query
+        chat_id = query.message.chat.id
+        await query.answer()
 
-    if query.data == "confirmar_nombre":
-        # Guardar en el Excel
-        data = generar_base_data(
-            user_data[chat_id]["cuadrilla"],
-            ""  # Tipo de trabajo se asignará después
-        )
-        loop = asyncio.get_running_loop()
-        await loop.run_in_executor(None, crear_o_actualizar_excel, update, data)
-       
-        # 🔹 Cambiamos el paso para que el bot sepa que ahora espera tipo de trabajo
-        user_data[chat_id]["paso"] = "tipo_trabajo"
+        logger.info(f"[DEBUG] Callback: {query.data}, user_data: {user_data.get(chat_id)}")
 
-        # Preguntar por tipo de trabajo
-        keyboard = [
-            [InlineKeyboardButton("📌 Ordenamiento", callback_data="tipo_ordenamiento")],
-            [InlineKeyboardButton("🏷 Etiquetado", callback_data="tipo_etiquetado")],
-        ]
-        await query.edit_message_text(
-            "Selecciona el tipo de trabajo:",
-            reply_markup=InlineKeyboardMarkup(keyboard)
-        )
+        if query.data == "confirmar_nombre":
+            data = generar_base_data(user_data[chat_id]["cuadrilla"], "")
+            loop = asyncio.get_running_loop()
+            await loop.run_in_executor(None, crear_o_actualizar_excel, update, data)
 
-    elif query.data == "corregir_nombre":
-        user_data[chat_id]["cuadrilla"] = ""
-        user_data[chat_id]["paso"] = 0
-        await query.edit_message_text(
-            "✍️ *Escribe el nombre de tu cuadrilla*\n\n"
-            "*Ejemplo:*\n"
-            "*T1: Juan Pérez*\n"
-            "*T2: José Flores*\n",
-            parse_mode="Markdown"
-        )
+            user_data[chat_id]["paso"] = "tipo_trabajo"
+            logger.info(f"[DEBUG] Paso cambiado a 'tipo_trabajo' para chat {chat_id}")
 
+            keyboard = [
+                [InlineKeyboardButton("📌 Ordenamiento", callback_data="tipo_ordenamiento")],
+                [InlineKeyboardButton("🏷 Etiquetado", callback_data="tipo_etiquetado")],
+            ]
+            await query.edit_message_text("Selecciona el tipo de trabajo:", reply_markup=InlineKeyboardMarkup(keyboard))
+
+        elif query.data == "corregir_nombre":
+            user_data[chat_id]["cuadrilla"] = ""
+            user_data[chat_id]["paso"] = 0
+            logger.info(f"[DEBUG] Corrección de cuadrilla: {user_data[chat_id]}")
+            await query.edit_message_text(
+                "✍️ *Escribe el nombre de tu cuadrilla*\n\n"
+                "*Ejemplo:*\n"
+                "*T1: Juan Pérez*\n"
+                "*T2: José Flores*\n",
+                parse_mode="Markdown"
+            )
+    except Exception as e:
+        logger.error(f"[ERROR] handle_nombre_cuadrilla: {e}")
+        await update.callback_query.message.reply_text("❌ Error interno en la confirmación de cuadrilla.")
 
 # ------------------ HANDLE TIPO TRABAJO ------------------ #
 async def handle_tipo_trabajo(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if not mensaje_es_para_bot(update, context):
-        return
+    try:
+        if not mensaje_es_para_bot(update, context):
+            return
 
-    query = update.callback_query
-    chat_id = query.message.chat.id
-    await query.answer()
+        query = update.callback_query
+        chat_id = query.message.chat.id
+        await query.answer()
 
-    tipo = "Ordenamiento" if query.data == "tipo_ordenamiento" else "Etiquetado"
-    user_data[chat_id]["tipo"] = tipo
-    user_data[chat_id]["paso"] = 1  # Ahora el bot espera la foto de ingreso
+        tipo = "Ordenamiento" if query.data == "tipo_ordenamiento" else "Etiquetado"
+        user_data[chat_id]["tipo"] = tipo
+        user_data[chat_id]["paso"] = 1
+        logger.info(f"[DEBUG] Tipo de trabajo: {tipo}, estado: {user_data[chat_id]}")
 
-    # --- Guardar tipo de trabajo en el Excel ---
-    nombre_grupo = query.message.chat.title
-    archivo_drive = buscar_archivo_en_drive(f"{nombre_grupo}.xlsx")
-    if archivo_drive:
-        df = descargar_excel(archivo_drive["id"])
-        df.at[df.index[-1], "TIPO DE TRABAJO"] = tipo
-        subir_excel(archivo_drive["id"], df)
-    else:
-        # Si no existe, creamos un nuevo registro desde cero
-        data = generar_base_data(
-            user_data.get(chat_id, {}).get("cuadrilla", ""),
-            tipo
+        nombre_grupo = query.message.chat.title
+        archivo_drive = buscar_archivo_en_drive(f"{nombre_grupo}.xlsx")
+        if archivo_drive:
+            df = descargar_excel(archivo_drive["id"])
+            df.at[df.index[-1], "TIPO DE TRABAJO"] = tipo
+            subir_excel(archivo_drive["id"], df)
+        else:
+            data = generar_base_data(user_data.get(chat_id, {}).get("cuadrilla", ""), tipo)
+            loop = asyncio.get_running_loop()
+            await loop.run_in_executor(None, crear_o_actualizar_excel, update, data)
+
+        await query.edit_message_text(
+            f"Tipo de trabajo seleccionado: *{tipo}*\n\n📸 Ahora envía tu selfie de inicio.",
+            parse_mode="Markdown"
         )
-        loop = asyncio.get_running_loop()
-        await loop.run_in_executor(None, crear_o_actualizar_excel, update, data)
-
-        # 🔹 Cambiamos el paso para que el bot sepa que ahora espera tipo de trabajo
-        user_data[chat_id]["paso"] = 1  # Ahora espera selfie de inicio
-
-    await query.edit_message_text(
-        f"Tipo de trabajo seleccionado: *{tipo}*\n\n📸 Ahora envía tu selfie de inicio.",
-        parse_mode="Markdown"
-    )
+    except Exception as e:
+        logger.error(f"[ERROR] handle_tipo_trabajo: {e}")
+        await update.callback_query.message.reply_text("❌ Error interno al seleccionar el tipo de trabajo.")
 
 
 async def foto_ingreso(update: Update, context: ContextTypes.DEFAULT_TYPE):
