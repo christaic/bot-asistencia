@@ -729,9 +729,8 @@ async def main():
     app.add_handler(CallbackQueryHandler(handle_tipo_trabajo, pattern="^tipo_"))
 
     # --------- CALLBACKS ATS/PETAR ---------
-    app.add_handler(CallbackQueryHandler(handle_ats_petar, pattern="^continuar_ats$"))
     app.add_handler(CallbackQueryHandler(handle_ats_petar, pattern="^ats_(si|no)$"))
-    app.add_handler(CallbackQueryHandler(manejar_repeticion_fotos, pattern="^(repetir_foto_inicio|repetir_foto_ats|continuar_post_ats)$"))
+    app.add_handler(CallbackQueryHandler(manejar_repeticion_fotos, pattern="^(continuar_ats|repetir_foto_inicio|repetir_foto_ats|continuar_post_ats)$"))
 
     # --------- CALLBACKS SALIDA ---------
     app.add_handler(CallbackQueryHandler(manejar_salida_callback, pattern="^(repetir_foto_salida|finalizar_salida)$"))
