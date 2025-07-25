@@ -298,15 +298,14 @@ async def nombre_cuadrilla(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 # ------------------ HANDLE NOMBRE CUADRILLA ------------------ #
 async def handle_nombre_cuadrilla(update: Update, context: ContextTypes.DEFAULT_TYPE):
-logger.info(f"[DEBUG] Llego al handler de nombre_cuadrilla con data = {update.callback_query.data}")
     try:
+        query = update.callback_query
         if not query:  # No es un callback
             return
 
-        query = update.callback_query
         chat_id = query.message.chat.id
         await query.answer()
-
+        logger.info(f"[DEBUG] Llego al handler de nombre_cuadrilla con data = {update.callback_query.data}")
         logger.info(f"[DEBUG] Callback: {query.data}, user_data: {user_data.get(chat_id)}")
 
         if query.data == "confirmar_nombre":
