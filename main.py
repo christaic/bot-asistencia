@@ -162,27 +162,22 @@ def crear_o_actualizar_excel(update: Update, data):
     archivo_drive = buscar_archivo_en_drive(nombre_archivo)
 
     if archivo_drive:
-        # ✅ Ya existe el archivo → descargarlo y agregar el nuevo registro
-        df_existente = descargar_excel(archivo_drive["id"])
-        df = pd.concat([df_existente, pd.DataFrame([data])], ignore_index=True)
-        subir_excel(archivo_drive["id"], df)
+        df = descargar_excel(archivo_drive["id"])
+        # Solo añade fila si la última fila tiene fecha diferente (nueva jornada)
+        if df.empty or df.iloc[-1]["FECHA"] != data["FECHA"]:
+            df = pd.concat([df, pd.DataFrame([data])], ignore_index=True)
+            subir_excel(archivo_drive["id"], df)
     else:
-        # ✅ No existe → crear el archivo con el primer registro
         df = pd.DataFrame([data])
         buffer = io.BytesIO()
         df.to_excel(buffer, index=False)
         buffer.seek(0)
         media = MediaIoBaseUpload(buffer, mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
-        file_metadata = {
-            "name": nombre_archivo,
-            "parents": [MAIN_FOLDER_ID]
-        }
+        file_metadata = {"name": nombre_archivo, "parents": [MAIN_FOLDER_ID]}
         drive_service.files().create(
-            body=file_metadata,
-            media_body=media,
-            fields="id",
-            supportsAllDrives=True
+            body=file_metadata, media_body=media, fields="id", supportsAllDrives=True
         ).execute()
+
 
 # -------------------- ESTRUCTURA DE FILA --------------------
 def generar_base_data(cuadrilla, tipo_trabajo):
@@ -305,10 +300,11 @@ async def handle_nombre_cuadrilla(update: Update, context: ContextTypes.DEFAULT_
 
         chat_id = query.message.chat.id
         await query.answer()
-        logger.info(f"[DEBUG] Llego al handler de nombre_cuadrilla con data = {update.callback_query.data}")
+        logger.info(f"[DEBUG] Llego al handler de nombre_cuadrilla con data = {query.data}")
         logger.info(f"[DEBUG] Callback: {query.data}, user_data: {user_data.get(chat_id)}")
 
         if query.data == "confirmar_nombre":
+            # Crear una fila inicial en el Excel (si deseas guardar al confirmar)
             data = generar_base_data(user_data[chat_id]["cuadrilla"], "")
             loop = asyncio.get_running_loop()
             await loop.run_in_executor(None, crear_o_actualizar_excel, update, data)
@@ -335,7 +331,7 @@ async def handle_nombre_cuadrilla(update: Update, context: ContextTypes.DEFAULT_
             )
     except Exception as e:
         logger.error(f"[ERROR] handle_nombre_cuadrilla: {e}")
-        await update.callback_query.message.reply_text("❌ Error interno en la confirmación de cuadrilla.")
+        await query.message.reply_text("❌ Error interno en la confirmación de cuadrilla.")
 
 # ------------------ HANDLE TIPO TRABAJO ------------------ #
 async def handle_tipo_trabajo(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -374,23 +370,41 @@ async def handle_tipo_trabajo(update: Update, context: ContextTypes.DEFAULT_TYPE
 
 
 async def foto_ingreso(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    chat_id = update.effective_chat.id  # <-- Definir aquí
+async def foto_ingreso(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not mensaje_es_para_bot(update, context):
         return
-        
+
     chat_id = update.effective_chat.id
     if chat_id not in user_data or user_data[chat_id].get("paso") != 1:
         return
     if not await validar_contenido(update, "foto"):
         return
-        
+
     hora_ingreso = datetime.now(LIMA_TZ).strftime("%H:%M")
     user_data[chat_id]["hora_ingreso"] = hora_ingreso
-    data = generar_base_data(user_data[chat_id]["cuadrilla"], user_data[chat_id]["tipo"])
-    data["HORA INGRESO"] = hora_ingreso
-    loop = asyncio.get_running_loop()
-    await loop.run_in_executor(None, crear_o_actualizar_excel, update, data)
 
+    # --- ACTUALIZAR SOLO LA ÚLTIMA FILA ---
+    nombre_grupo = update.effective_chat.title
+    archivo_drive = buscar_archivo_en_drive(f"{nombre_grupo}.xlsx")
+
+    if archivo_drive:
+        df = descargar_excel(archivo_drive["id"])
+        if not df.empty:
+            df.at[df.index[-1], "HORA INGRESO"] = hora_ingreso
+            subir_excel(archivo_drive["id"], df)
+        else:
+            # Si el archivo existe pero está vacío, creamos la fila inicial
+            data = generar_base_data(user_data[chat_id]["cuadrilla"], user_data[chat_id]["tipo"])
+            data["HORA INGRESO"] = hora_ingreso
+            subir_excel(archivo_drive["id"], pd.DataFrame([data]))
+    else:
+        # Si no existe el archivo, lo creamos con la fila inicial
+        data = generar_base_data(user_data[chat_id]["cuadrilla"], user_data[chat_id]["tipo"])
+        data["HORA INGRESO"] = hora_ingreso
+        loop = asyncio.get_running_loop()
+        await loop.run_in_executor(None, crear_o_actualizar_excel, update, data)
+
+    # --- MOSTRAR BOTONES ---
     keyboard = [
         [InlineKeyboardButton("🔄 Repetir Selfie", callback_data="repetir_foto_inicio")],
         [InlineKeyboardButton("📝📋 Continuar con ATS/PETAR", callback_data="continuar_ats")],
@@ -399,6 +413,7 @@ async def foto_ingreso(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "¿Es correcto el selfie de inicio?",
         reply_markup=InlineKeyboardMarkup(keyboard)
     )
+
 
 # -------------------- MANEJAR REPETICIÓN DE FOTOS --------------------
 async def manejar_repeticion_fotos(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -465,7 +480,7 @@ async def manejar_repeticion_fotos(update: Update, context: ContextTypes.DEFAULT
         if update.callback_query:
             await update.callback_query.message.reply_text("❌ Error interno al manejar repetición de fotos.")
 
-# -------------------- ATS/PETAR --------------------
+# -------------------- HANDLE ATS/PETAR --------------------
 async def handle_ats_petar(update: Update, context: ContextTypes.DEFAULT_TYPE):
     try:
         query = update.callback_query
@@ -480,7 +495,7 @@ async def handle_ats_petar(update: Update, context: ContextTypes.DEFAULT_TYPE):
         nombre_grupo = query.message.chat.title
         archivo_drive = buscar_archivo_en_drive(f"{nombre_grupo}.xlsx")
 
-        # Si respondió SÍ
+        # ----------------- RESPUESTA ATS SI -----------------
         if query.data == "ats_si":
             user_data[chat_id]["paso"] = 2
             logger.info(f"[DEBUG] Paso cambiado a 2 (espera foto ATS/PETAR) para chat {chat_id}")
@@ -490,26 +505,33 @@ async def handle_ats_petar(update: Update, context: ContextTypes.DEFAULT_TYPE):
             )
             return
 
-        # Si respondió NO: Guardar en el Excel
+        # ----------------- RESPUESTA ATS NO -----------------
+        loop = asyncio.get_running_loop()
+
+        # Si no existe el archivo, lo creamos con la base de datos
         if not archivo_drive:
-            # Crear registro si no existe
             data = generar_base_data(
                 user_data.get(chat_id, {}).get("cuadrilla", ""),
                 user_data.get(chat_id, {}).get("tipo", "")
             )
-            crear_o_actualizar_excel(update, data)
+            await loop.run_in_executor(None, crear_o_actualizar_excel, update, data)
             archivo_drive = buscar_archivo_en_drive(f"{nombre_grupo}.xlsx")
             logger.info(f"[DEBUG] Archivo {nombre_grupo}.xlsx creado para ATS=No")
 
+        # Actualizar el ATS a "No" en la última fila
         if archivo_drive:
-            df = descargar_excel(archivo_drive["id"])
-            df.at[df.index[-1], "ATS/PETAR"] = "No"
-            subir_excel(archivo_drive["id"], df)
-            logger.info(f"[DEBUG] ATS/PETAR='No' registrado en {nombre_grupo}.xlsx")
+            df = await loop.run_in_executor(None, descargar_excel, archivo_drive["id"])
+            if not df.empty:
+                df.at[df.index[-1], "ATS/PETAR"] = "No"
+                await loop.run_in_executor(None, subir_excel, archivo_drive["id"], df)
+                logger.info(f"[DEBUG] ATS/PETAR='No' registrado en {nombre_grupo}.xlsx")
+            else:
+                logger.warning(f"[DEBUG] No se encontró ninguna fila para actualizar en {nombre_grupo}.xlsx")
 
         user_data[chat_id]["paso"] = "selfie_salida"
         logger.info(f"[DEBUG] Paso cambiado a 'selfie_salida' para chat {chat_id}")
 
+        # Mostrar mensaje de alerta
         keyboard = [
             [InlineKeyboardButton("📸 Enviar foto de ATS/PETAR de todas formas", callback_data="reenviar_ats")]
         ]
@@ -518,7 +540,7 @@ async def handle_ats_petar(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "✅ Previenes accidentes.\n"
             "✅ Proteges tu vida y la de tu equipo.\n\n"
             "¡La seguridad empieza contigo!\n"
-            "💪*Puedes iniciar tu jornada.*💪",
+            "💪 *Puedes iniciar tu jornada.* 💪",
             parse_mode="Markdown",
             reply_markup=InlineKeyboardMarkup(keyboard)
         )
@@ -527,27 +549,6 @@ async def handle_ats_petar(update: Update, context: ContextTypes.DEFAULT_TYPE):
         logger.error(f"[ERROR] handle_ats_petar: {e}")
         if update.callback_query:
             await update.callback_query.message.reply_text("❌ Error interno en ATS/PETAR.")
-
-# -------------------- FOTO ATS/PETAR --------------------
-async def foto_ats(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if not mensaje_es_para_bot(update, context):
-        return
-
-    chat_id = update.effective_chat.id
-    if chat_id not in user_data or user_data[chat_id].get("paso") != 2:
-        return
-    if not await validar_contenido(update, "foto"):
-        return
-
-    user_data[chat_id]["ats_foto"] = "OK"  # Solo marcamos que ATS/PETAR tiene foto
-    keyboard = [
-        [InlineKeyboardButton("🔄 Repetir Foto ATS/PETAR", callback_data="repetir_foto_ats")],
-        [InlineKeyboardButton("➡️ Continuar a jornada", callback_data="continuar_post_ats")],
-    ]
-    await update.message.reply_text(
-        "¿Es correcta la foto del ATS/PETAR?",
-        reply_markup=InlineKeyboardMarkup(keyboard)
-    )
 
 # -------------------- BREAK OUT --------------------
 async def breakout(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -646,39 +647,54 @@ async def manejar_salida_callback(update: Update, context: ContextTypes.DEFAULT_
 
 # -------------------- SELFIE SALIDA --------------------
 async def selfie_salida(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    chat_id = update.effective_chat.id  # <-- Definir aquí
-    if not mensaje_es_para_bot(update, context):
-        return
+    try:
+        chat_id = update.effective_chat.id
+        if not mensaje_es_para_bot(update, context):
+            return
 
-    chat_id = update.effective_chat.id
-    if user_data.get(chat_id, {}).get("paso") != "selfie_salida":
-        return
+        # Validar estado
+        if user_data.get(chat_id, {}).get("paso") != "selfie_salida":
+            logger.info(f"[DEBUG] selfie_salida ignorado, paso actual: {user_data.get(chat_id)}")
+            return
 
-    if not await validar_contenido(update, "foto"):
-        return
+        if not await validar_contenido(update, "foto"):
+            return
 
-    hora_salida = datetime.now(LIMA_TZ).strftime("%H:%M")
+        hora_salida = datetime.now(LIMA_TZ).strftime("%H:%M")
+        nombre_grupo = update.effective_chat.title
 
-    nombre_grupo = update.effective_chat.title
-    archivo_drive = buscar_archivo_en_drive(f"{nombre_grupo}.xlsx")
-    if not archivo_drive:
-        await update.message.reply_text("❌ No hay registro de ingreso previo.")
-        return
+        loop = asyncio.get_running_loop()
+        archivo_drive = await loop.run_in_executor(None, buscar_archivo_en_drive, f"{nombre_grupo}.xlsx")
 
-    # Actualizar Excel
-    df = descargar_excel(archivo_drive["id"])
-    df.at[df.index[-1], "HORA SALIDA"] = hora_salida
-    subir_excel(archivo_drive["id"], df)
+        if not archivo_drive:
+            await update.message.reply_text("❌ No hay registro de ingreso previo.")
+            logger.warning(f"[DEBUG] No se encontró archivo para {nombre_grupo}")
+            return
 
-    keyboard = [
-        [InlineKeyboardButton("🔄 Repetir Selfie de Salida", callback_data="repetir_foto_salida")],
-        [InlineKeyboardButton("✅ Finalizar Jornada", callback_data="finalizar_salida")],
-    ]
-    await update.message.reply_text(
-        f"🚪 Hora de salida registrada a las *{hora_salida}*.\n\n¿Está correcta la selfie?",
-        parse_mode="Markdown",
-        reply_markup=InlineKeyboardMarkup(keyboard)
-    )
+        # Actualizar Excel
+        df = await loop.run_in_executor(None, descargar_excel, archivo_drive["id"])
+        if df.empty:
+            await update.message.reply_text("⚠️ No hay datos previos para actualizar.")
+            logger.warning(f"[DEBUG] Excel {nombre_grupo} está vacío.")
+            return
+
+        df.at[df.index[-1], "HORA SALIDA"] = hora_salida
+        await loop.run_in_executor(None, subir_excel, archivo_drive["id"], df)
+        logger.info(f"[DEBUG] HORA SALIDA='{hora_salida}' actualizada en {nombre_grupo}.xlsx")
+
+        keyboard = [
+            [InlineKeyboardButton("🔄 Repetir Selfie de Salida", callback_data="repetir_foto_salida")],
+            [InlineKeyboardButton("✅ Finalizar Jornada", callback_data="finalizar_salida")],
+        ]
+        await update.message.reply_text(
+            f"🚪 Hora de salida registrada a las *{hora_salida}*.\n\n¿Está correcta la selfie?",
+            parse_mode="Markdown",
+            reply_markup=InlineKeyboardMarkup(keyboard)
+        )
+
+    except Exception as e:
+        logger.error(f"[ERROR] selfie_salida: {e}")
+        await update.message.reply_text("❌ Error interno al registrar la selfie de salida.")
 
 # -------------------- MANEJAR FOTOS --------------------
 async def manejar_fotos(update: Update, context: ContextTypes.DEFAULT_TYPE):
