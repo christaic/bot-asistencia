@@ -25,7 +25,7 @@ from pytz import timezone
 LIMA_TZ = timezone("America/Lima")
 
 # -------------------- CONFIGURACIÓN --------------------
-BOT_TOKEN = "8105661196:AAE43P8yPbgJZau38HLUjbTCdTxckJFAnhs"  # Token del bot
+BOT_TOKEN = "8004038750:AAGOw_IyXjsCEosr2B5hzP7J_uDJW9ImP20"  # Token del bot
 NOMBRE_CARPETA_DRIVE = "ASISTENCIA_BOT"  # Carpeta principal
 DRIVE_ID = "0AOy_EhsaSY_HUk9PVA"  # ID de la unidad compartida
 ALLOWED_CHATS = [-1002640857147, -4718591093, -4831456255, -1002814603547, -1002838776671, -4951443286, -4870196969, -4824829490, -4979512409, -4903731585, -4910534813, -4845865029, -4643755320, -4860386920]  # Reemplaza con los IDs de tus grupos
