@@ -198,10 +198,6 @@ def generar_base_data(cuadrilla, tipo_trabajo):
         "HORA BREAK OUT": "",
         "HORA BREAK IN": "",
         "HORA SALIDA": "",
-        "HORAS BREAK": "",
-        "HORAS LABORADAS": "",
-        "AVANCE": "",
-        "OBSERVACIÓN": "",
     }
 
 
@@ -610,7 +606,7 @@ async def breakin(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     await update.message.reply_text(
         f"🚶🚀 Regreso de Break 🚀🚶, registrado a las {hora}👀👀.\n\n"
-        "**Escribe /start @VTetiquetado_bot** para continuar."
+        "*Escribe /start @VTetiquetado_bot* para continuar."
     )
 
 
