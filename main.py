@@ -179,6 +179,18 @@ def obtener_nombre_grupo_y_archivo(update: Update):
     nombre_limpio = re.sub(r'[\\/*?:"<>|]', '', nombre_ascii).strip()[:100]
     return f"{nombre_limpio}.xlsx", nombre_limpio
 
+def obtener_ultima_fila_valida(ws, columnas_clave):
+    """
+    Busca la última fila que tenga algún dato en las columnas que usa el bot (A a I).
+    Ignora celdas con solo fórmulas o columnas fuera de control del bot (J en adelante).
+    """
+    for fila in range(ws.max_row, 1, -1):
+        for col in columnas_clave:
+            celda = ws[f"{col}{fila}"]
+            if celda.value not in (None, ""):
+                return fila
+    return 1  # Si no se encuentra ninguna fila con datos reales, usar fila 1
+
 
 # --------------CREAR O ACTUALIZAR EXCEL------------------
 def crear_o_actualizar_excel(update: Update, data: dict):
@@ -204,32 +216,33 @@ def crear_o_actualizar_excel(update: Update, data: dict):
             # 2. Cargar archivo y preparar hoja
             wb = load_workbook(archivo_local)
             ws = wb.active
-            fila_origen = ws.max_row
-            fila_nueva = fila_origen + 1
-
             encabezados = [cell.value for cell in ws[1]]
+
+            # 🧠 Definir columnas clave del bot para determinar fila válida
+            columnas_bot_letras = ["A", "B", "C", "D", "E", "F", "G", "H", "I"]  # MES a HORA SALIDA
+            fila_valida = obtener_ultima_fila_valida(ws, columnas_bot_letras)
+            fila_nueva = fila_valida + 1
+
             columnas_validas = {
                 "MES", "FECHA", "CUADRILLA", "TIPO DE TRABAJO",
                 "ATS/PETAR", "HORA INGRESO", "HORA BREAK OUT",
                 "HORA BREAK IN", "HORA SALIDA"
             }
 
-            # 3. Copiar contenido de la fila anterior
-            for col in range(1, ws.max_column + 1):
-                nombre_col = encabezados[col - 1]
-                celda_origen = ws.cell(row=fila_origen, column=col)
-                celda_destino = ws.cell(row=fila_nueva, column=col)
+            # 3. Copiar contenido de la fila anterior SOLO si hay algo
+            if fila_valida > 1:
+                for col in range(1, ws.max_column + 1):
+                    nombre_col = encabezados[col - 1]
+                    celda_origen = ws.cell(row=fila_valida, column=col)
+                    celda_destino = ws.cell(row=fila_nueva, column=col)
 
-                if nombre_col in columnas_validas:
-                    # ✅ Solo columnas manejadas por el bot
-                    if celda_origen.data_type == 'f':
+                    if nombre_col in columnas_validas:
+                        if celda_origen.data_type == 'f':
+                            celda_destino.value = f"={celda_origen.value}"
+                        else:
+                            celda_destino.value = celda_origen.value
+                    elif celda_origen.data_type == 'f':
                         celda_destino.value = f"={celda_origen.value}"
-                    else:
-                        celda_destino.value = celda_origen.value
-
-                elif celda_origen.data_type == 'f':
-                    # ✅ Copiar fórmula incluso si no es columna válida (AVANCE, OBSERVACIÓN, etc.)
-                    celda_destino.value = f"={celda_origen.value}"
 
             # 4. Insertar nuevos valores del bot
             for clave, valor in data.items():
@@ -251,10 +264,10 @@ def crear_o_actualizar_excel(update: Update, data: dict):
                 supportsAllDrives=True
             ).execute()
 
-            logger.info(f"[DEBUG] Archivo {nombre_archivo} actualizado sin tocar fórmulas manuales.")
+            logger.info(f"[DEBUG] Archivo {nombre_archivo} actualizado correctamente en fila {fila_nueva}.")
 
         else:
-            # Si no existe el archivo, lo crea desde cero
+            # Crear archivo desde cero si no existe
             logger.info(f"[DEBUG] Archivo no encontrado, creando {nombre_archivo}")
             df = pd.DataFrame([data])
             buffer = io.BytesIO()
@@ -271,6 +284,7 @@ def crear_o_actualizar_excel(update: Update, data: dict):
 
     except Exception as e:
         logger.error(f"[ERROR] crear_o_actualizar_excel: {e}")
+
 
 # -------------------- ESTRUCTURA DE FILA --------------------
 def generar_base_data(cuadrilla, tipo_trabajo):
