@@ -191,7 +191,7 @@ def crear_o_actualizar_excel(update: Update, data: dict):
         if archivo_drive:
             logger.info(f"[DEBUG] Archivo existente en Drive: {archivo_drive['name']}")
 
-            # 1. Descargar archivo original desde Drive
+            # 1. Descargar archivo original
             file_id = archivo_drive["id"]
             archivo_local = f"/tmp/{nombre_archivo}"
             request = drive_service.files().get_media(fileId=file_id)
@@ -214,27 +214,30 @@ def crear_o_actualizar_excel(update: Update, data: dict):
                 "HORA BREAK IN", "HORA SALIDA"
             }
 
-            # 3. Copiar solo columnas válidas desde la fila anterior
+            # 3. Copiar contenido de la fila anterior
             for col in range(1, ws.max_column + 1):
                 nombre_col = encabezados[col - 1]
-                if nombre_col not in columnas_validas:
-                    continue  # ⛔ Ignorar columnas como AVANCE, OBSERVACIÓN, etc.
-
                 celda_origen = ws.cell(row=fila_origen, column=col)
                 celda_destino = ws.cell(row=fila_nueva, column=col)
 
-                if celda_origen.data_type == 'f':
-                    celda_destino.value = f"={celda_origen.value}"
-                else:
-                    celda_destino.value = celda_origen.value
+                if nombre_col in columnas_validas:
+                    # ✅ Solo columnas manejadas por el bot
+                    if celda_origen.data_type == 'f':
+                        celda_destino.value = f"={celda_origen.value}"
+                    else:
+                        celda_destino.value = celda_origen.value
 
-            # 4. Insertar nuevos valores proporcionados por el bot
+                elif celda_origen.data_type == 'f':
+                    # ✅ Copiar fórmula incluso si no es columna válida (AVANCE, OBSERVACIÓN, etc.)
+                    celda_destino.value = f"={celda_origen.value}"
+
+            # 4. Insertar nuevos valores del bot
             for clave, valor in data.items():
                 if clave in encabezados:
                     col_idx = encabezados.index(clave) + 1
                     ws.cell(row=fila_nueva, column=col_idx).value = valor
 
-            # 5. Guardar y subir nuevamente a Google Drive
+            # 5. Guardar y subir actualizado
             wb.save(archivo_local)
             wb.close()
 
@@ -248,10 +251,10 @@ def crear_o_actualizar_excel(update: Update, data: dict):
                 supportsAllDrives=True
             ).execute()
 
-            logger.info(f"[DEBUG] Archivo {nombre_archivo} actualizado y subido con columnas protegidas.")
+            logger.info(f"[DEBUG] Archivo {nombre_archivo} actualizado sin tocar fórmulas manuales.")
 
         else:
-            # Si el archivo no existe, lo crea desde cero con encabezados mínimos
+            # Si no existe el archivo, lo crea desde cero
             logger.info(f"[DEBUG] Archivo no encontrado, creando {nombre_archivo}")
             df = pd.DataFrame([data])
             buffer = io.BytesIO()
@@ -268,7 +271,6 @@ def crear_o_actualizar_excel(update: Update, data: dict):
 
     except Exception as e:
         logger.error(f"[ERROR] crear_o_actualizar_excel: {e}")
-
 
 # -------------------- ESTRUCTURA DE FILA --------------------
 def generar_base_data(cuadrilla, tipo_trabajo):
