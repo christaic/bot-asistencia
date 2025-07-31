@@ -18,6 +18,7 @@ from telegram.ext import (
 )
 from google.oauth2 import service_account
 from googleapiclient.discovery import build
+from openpyxl import load_workbook
 from googleapiclient.http import MediaIoBaseUpload, MediaIoBaseDownload
 from pytz import timezone
 
@@ -147,6 +148,28 @@ def subir_excel(file_id, df):
     media = MediaIoBaseUpload(buffer, mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
     drive_service.files().update(fileId=file_id, media_body=media, supportsAllDrives=True).execute()
 
+def actualizar_y_subir_excel_sin_borrar_formulas(file_id, columna, valor, hoja="Sheet1"):
+    # Paso 1: Descargar archivo temporalmente
+    archivo_local = f"/tmp/temp_excel_{file_id}.xlsx"
+    request = drive_service.files().get_media(fileId=file_id)
+    with open(archivo_local, "wb") as f:
+        downloader = MediaIoBaseDownload(f, request)
+        done = False
+        while not done:
+            status, done = downloader.next_chunk()
+
+    # Paso 2: Modificar solo la celda deseada
+    wb = load_workbook(archivo_local)
+    ws = wb[hoja]
+    fila = ws.max_row
+    ws[f"{columna}{fila}"] = valor
+    wb.save(archivo_local)
+    wb.close()
+
+    # Paso 3: Subir archivo nuevamente
+    media = MediaFileUpload(archivo_local, mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+    drive_service.files().update(fileId=file_id, media_body=media, supportsAllDrives=True).execute()
+
 # --------------NOMBRE LIMPIO------------------
 def obtener_nombre_grupo_y_archivo(update: Update):
     """Obtiene el nombre del grupo y devuelve: (archivo_excel, nombre_limpio)"""
@@ -200,6 +223,14 @@ def generar_base_data(cuadrilla, tipo_trabajo):
         "HORA SALIDA": "",
     }
 
+# -------------------- MAPA DE COLUMNAS --------------------
+MAPA_COLUMNAS = {
+    "ATS/PETAR": "E",         # Asumiendo que va en la columna 5
+    "HORA INGRESO": "F",
+    "HORA BREAK OUT": "G",
+    "HORA BREAK IN": "H",
+    "HORA SALIDA": "I",
+}
 
 # -------------------- ESTADOS TEMPORALES --------------------
 user_data = {}
@@ -385,13 +416,12 @@ async def foto_ingreso(update: Update, context: ContextTypes.DEFAULT_TYPE):
     hora_ingreso = datetime.now(LIMA_TZ).strftime("%H:%M")
     user_data[chat_id]["hora_ingreso"] = hora_ingreso
 
-    # Aquí ya actualizamos la fila existente en Excel
     nombre_grupo = update.effective_chat.title
     archivo_drive = buscar_archivo_en_drive(f"{nombre_grupo}.xlsx")
     if archivo_drive:
-        df = descargar_excel(archivo_drive["id"])
-        df.at[df.index[-1], "HORA INGRESO"] = hora_ingreso
-        subir_excel(archivo_drive["id"], df)
+        await asyncio.get_running_loop().run_in_executor(None,
+            actualizar_y_subir_excel_sin_borrar_formulas,
+            archivo_drive["id"], MAPA_COLUMNAS["HORA INGRESO"], hora_ingreso)
     else:
         await update.message.reply_text("❌ No hay registro de cuadrilla. Usa /ingreso para iniciar.")
         return
@@ -481,14 +511,14 @@ async def foto_ats(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not await validar_contenido(update, "foto"):
         return
 
-    user_data[chat_id]["ats_foto"] = "OK"  # Marca que ATS/PETAR tiene foto
+    user_data[chat_id]["ats_foto"] = "OK"
 
     nombre_grupo = update.effective_chat.title
     archivo_drive = buscar_archivo_en_drive(f"{nombre_grupo}.xlsx")
     if archivo_drive:
-        df = descargar_excel(archivo_drive["id"])
-        df.at[df.index[-1], "ATS/PETAR"] = "Sí"  # Marca Sí en la última fila
-        subir_excel(archivo_drive["id"], df)
+        await asyncio.get_running_loop().run_in_executor(None,
+            actualizar_y_subir_excel_sin_borrar_formulas,
+            archivo_drive["id"], MAPA_COLUMNAS["ATS/PETAR"], "Sí")
 
     keyboard = [
         [InlineKeyboardButton("🔄 Repetir Foto ATS/PETAR", callback_data="repetir_foto_ats")],
@@ -498,7 +528,6 @@ async def foto_ats(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "¿Es correcta la foto del ATS/PETAR?",
         reply_markup=InlineKeyboardMarkup(keyboard)
     )
-
 
 
 # -------------------- HANDLE ATS/PETAR --------------------
@@ -577,19 +606,20 @@ async def breakout(update: Update, context: ContextTypes.DEFAULT_TYPE):
     chat_id = update.effective_chat.id
     hora = datetime.now(LIMA_TZ).strftime("%H:%M")
     nombre_grupo = update.effective_chat.title
-    loop = asyncio.get_running_loop()
+    archivo_drive = await asyncio.get_running_loop().run_in_executor(None,
+        buscar_archivo_en_drive, f"{nombre_grupo}.xlsx")
 
-    archivo_drive = await loop.run_in_executor(None, buscar_archivo_en_drive, f"{nombre_grupo}.xlsx")
     if not archivo_drive:
         await update.message.reply_text("❌ No hay registro de ingreso previo.")
         return
 
-    df = await loop.run_in_executor(None, descargar_excel, archivo_drive["id"])
-    df.at[df.index[-1], "HORA BREAK OUT"] = hora
-    await loop.run_in_executor(None, subir_excel, archivo_drive["id"], df)
+    await asyncio.get_running_loop().run_in_executor(None,
+        actualizar_y_subir_excel_sin_borrar_formulas,
+        archivo_drive["id"], MAPA_COLUMNAS["HORA BREAK OUT"], hora)
 
     await update.message.reply_text(f"🍽️😋 Salida a Break 😋🍽️, registrado a las {hora}.💪💪")
 
+# -------------------- BREAK IN --------------------
 
 async def breakin(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not mensaje_es_para_bot(update, context):
@@ -598,21 +628,22 @@ async def breakin(update: Update, context: ContextTypes.DEFAULT_TYPE):
     chat_id = update.effective_chat.id
     hora = datetime.now(LIMA_TZ).strftime("%H:%M")
     nombre_grupo = update.effective_chat.title
-    loop = asyncio.get_running_loop()
+    archivo_drive = await asyncio.get_running_loop().run_in_executor(None,
+        buscar_archivo_en_drive, f"{nombre_grupo}.xlsx")
 
-    archivo_drive = await loop.run_in_executor(None, buscar_archivo_en_drive, f"{nombre_grupo}.xlsx")
     if not archivo_drive:
         await update.message.reply_text("❌ No hay registro de ingreso previo.")
         return
 
-    df = await loop.run_in_executor(None, descargar_excel, archivo_drive["id"])
-    df.at[df.index[-1], "HORA BREAK IN"] = hora
-    await loop.run_in_executor(None, subir_excel, archivo_drive["id"], df)
+    await asyncio.get_running_loop().run_in_executor(None,
+        actualizar_y_subir_excel_sin_borrar_formulas,
+        archivo_drive["id"], MAPA_COLUMNAS["HORA BREAK IN"], hora)
 
     await update.message.reply_text(
         f"🚶🚀 Regreso de Break 🚀🚶, registrado a las {hora}👀👀.\n\n"
         " 💪 *Puedes continuar tu jornada.* 💪 "
     )
+
 
 
 # -------------------- SALIDA --------------------
@@ -671,7 +702,6 @@ async def selfie_salida(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if not mensaje_es_para_bot(update, context):
             return
 
-        # Validar estado
         if user_data.get(chat_id, {}).get("paso") != "selfie_salida":
             logger.info(f"[DEBUG] selfie_salida ignorado, paso actual: {user_data.get(chat_id)}")
             return
@@ -681,25 +711,14 @@ async def selfie_salida(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         hora_salida = datetime.now(LIMA_TZ).strftime("%H:%M")
         nombre_grupo = update.effective_chat.title
-
-        loop = asyncio.get_running_loop()
-        archivo_drive = await loop.run_in_executor(None, buscar_archivo_en_drive, f"{nombre_grupo}.xlsx")
-
+        archivo_drive = buscar_archivo_en_drive(f"{nombre_grupo}.xlsx")
         if not archivo_drive:
             await update.message.reply_text("❌ No hay registro de ingreso previo.")
-            logger.warning(f"[DEBUG] No se encontró archivo para {nombre_grupo}")
             return
 
-        # Actualizar Excel
-        df = await loop.run_in_executor(None, descargar_excel, archivo_drive["id"])
-        if df.empty:
-            await update.message.reply_text("⚠️ No hay datos previos para actualizar.")
-            logger.warning(f"[DEBUG] Excel {nombre_grupo} está vacío.")
-            return
-
-        df.at[df.index[-1], "HORA SALIDA"] = hora_salida
-        await loop.run_in_executor(None, subir_excel, archivo_drive["id"], df)
-        logger.info(f"[DEBUG] HORA SALIDA='{hora_salida}' actualizada en {nombre_grupo}.xlsx")
+        await asyncio.get_running_loop().run_in_executor(None,
+            actualizar_y_subir_excel_sin_borrar_formulas,
+            archivo_drive["id"], MAPA_COLUMNAS["HORA SALIDA"], hora_salida)
 
         keyboard = [
             [InlineKeyboardButton("🔄 Repetir Selfie de Salida", callback_data="repetir_foto_salida")],
