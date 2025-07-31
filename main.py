@@ -517,7 +517,7 @@ async def manejar_repeticion_fotos(update: Update, context: ContextTypes.DEFAULT
         # Enviamos el mensaje motivador y guardamos su ID
             
             await query.edit_message_text("✅ ¡Registro completado!")
-            mensaje = await query.edit_message_text(
+            mensaje = await context.bot.send_message(
                 chat_id=chat_id,
                 text="¡Excelente! 🎉 Ya estás listo para comenzar.\n\n💪 *Puedes iniciar tu jornada.* 💪",
                 parse_mode="Markdown"    
