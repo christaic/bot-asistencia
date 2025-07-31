@@ -514,14 +514,16 @@ async def manejar_repeticion_fotos(update: Update, context: ContextTypes.DEFAULT
             user_data.setdefault(chat_id, {})["paso"] = "selfie_salida"
             logger.info(f"[DEBUG] Paso cambiado a 'selfie_salida' para chat {chat_id}")
 
-            # Enviamos el mensaje motivador y guardamos su ID
-            await query.edit_message_text(
-                "¡Excelente! 🎉 Ya estás listo para comenzar.\n\n"
-                "💪 *Puedes iniciar tu jornada.* 💪",
-                parse_mode="Markdown"
+        # Enviamos el mensaje motivador y guardamos su ID
+            
+            await query.edit_message_text("✅ ¡Registro completado!")
+            mensaje = await query.edit_message_text(
+                chat_id=chat_id,
+                text="¡Excelente! 🎉 Ya estás listo para comenzar.\n\n💪 *Puedes iniciar tu jornada.* 💪",
+                parse_mode="Markdown"    
             )
 
-            # Guardamos el ID del mensaje para luego ignorar respuestas a él
+        # Guardamos el ID del mensaje para luego ignorar respuestas a él
             user_data[chat_id]["msg_id_motivador"] = motivador.message_id
 
         # --- SELFIE SALIDA ---
