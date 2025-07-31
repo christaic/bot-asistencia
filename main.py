@@ -442,11 +442,16 @@ async def manejar_repeticion_fotos(update: Update, context: ContextTypes.DEFAULT
         elif query.data == "continuar_post_ats":
             user_data.setdefault(chat_id, {})["paso"] = "selfie_salida"
             logger.info(f"[DEBUG] Paso cambiado a 'selfie_salida' para chat {chat_id}")
+
+            # Enviamos el mensaje motivador y guardamos su ID
             await query.edit_message_text(
                 "¡Excelente! 🎉 Ya estás listo para comenzar.\n\n"
                 "💪 *Puedes iniciar tu jornada.* 💪",
                 parse_mode="Markdown"
             )
+
+            # Guardamos el ID del mensaje para luego ignorar respuestas a él
+            user_data[chat_id]["msg_id_motivador"] = motivador.message_id
 
         # --- SELFIE SALIDA ---
         elif query.data == "repetir_foto_salida":
@@ -606,7 +611,7 @@ async def breakin(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     await update.message.reply_text(
         f"🚶🚀 Regreso de Break 🚀🚶, registrado a las {hora}👀👀.\n\n"
-        "*Escribe /start @VTetiquetado_bot* para continuar."
+        " 💪 *Puedes continuar tu jornada.* 💪 "
     )
 
 
@@ -712,10 +717,23 @@ async def selfie_salida(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 # -------------------- MANEJAR FOTOS --------------------
 async def manejar_fotos(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    chat_id = update.effective_chat.id  # <-- Definir aquí
+    chat_id = update.effective_chat.id
+
+    # ⛔ Ignorar si el mensaje es respuesta al mensaje motivador
+    if update.message.reply_to_message:
+        reply_id = update.message.reply_to_message.message_id
+        texto = update.message.text or ""
+
+        # Verificar si responde al mensaje motivador exacto guardado
+        if reply_id == user_data.get(chat_id, {}).get("msg_id_motivador"):
+            if not texto.startswith(("/breakout", "/breakin", "/salida")):
+                logger.info(f"[DEBUG] Ignorado: respuesta al mensaje motivador. chat_id={chat_id}")
+                return
+
+    # ✅ Continuar si el mensaje es válido o no es respuesta al motivador
     if not mensaje_es_para_bot(update, context):
         return
-    chat_id = update.effective_chat.id
+
     paso = user_data.get(chat_id, {}).get("paso")
 
     if paso == 1:
@@ -726,6 +744,7 @@ async def manejar_fotos(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await selfie_salida(update, context)
     else:
         await update.message.reply_text("⚠️ No es momento de enviar fotos ⚠️ \n\n. *Usa /ingreso y etiquetame para comenzar.*")
+
 
 # -------------------- MAIN --------------------
 async def main():
