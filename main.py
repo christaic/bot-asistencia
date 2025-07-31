@@ -201,29 +201,41 @@ def crear_o_actualizar_excel(update: Update, data: dict):
                 while not done:
                     status, done = downloader.next_chunk()
 
-            # 2. Cargar y copiar fila anterior
+            # 2. Cargar y copiar solo columnas necesarias
             wb = load_workbook(archivo_local)
             ws = wb.active
             fila_origen = ws.max_row
             fila_nueva = fila_origen + 1
             ws.insert_rows(fila_nueva)
 
+            encabezados = [cell.value for cell in ws[1]]
+
+            columnas_validas = {
+                "MES", "FECHA", "CUADRILLA", "TIPO DE TRABAJO",
+                "ATS/PETAR", "HORA INGRESO", "HORA BREAK OUT",
+                "HORA BREAK IN", "HORA SALIDA"
+            }
+
             for col in range(1, ws.max_column + 1):
+                nombre_col = encabezados[col - 1]
+                if nombre_col not in columnas_validas:
+                    continue  # ⛔ No tocar columnas manuales como AVANCE, HORAS BREAK, etc.
+
                 celda_origen = ws.cell(row=fila_origen, column=col)
                 celda_destino = ws.cell(row=fila_nueva, column=col)
+
                 if celda_origen.data_type == 'f':
                     celda_destino.value = f"={celda_origen.value}"
                 else:
                     celda_destino.value = celda_origen.value
 
-            # 3. Insertar los datos nuevos (solo columnas específicas)
-            encabezados = [cell.value for cell in ws[1]]
+            # 3. Insertar datos nuevos
             for clave, valor in data.items():
                 if clave in encabezados:
                     col_idx = encabezados.index(clave) + 1
                     ws.cell(row=fila_nueva, column=col_idx).value = valor
 
-            # 4. Guardar archivo modificado
+            # 4. Guardar y subir el archivo actualizado
             wb.save(archivo_local)
             wb.close()
 
@@ -232,7 +244,7 @@ def crear_o_actualizar_excel(update: Update, data: dict):
             logger.info(f"[DEBUG] Archivo {nombre_archivo} actualizado y subido con fórmula conservada.")
 
         else:
-            # Crear archivo desde cero si no existe
+            # Si el archivo no existe, lo crea desde cero
             logger.info(f"[DEBUG] Archivo no encontrado, creando {nombre_archivo}")
             df = pd.DataFrame([data])
             buffer = io.BytesIO()
@@ -246,8 +258,6 @@ def crear_o_actualizar_excel(update: Update, data: dict):
 
     except Exception as e:
         logger.error(f"[ERROR] crear_o_actualizar_excel: {e}")
-
-
 
 # -------------------- ESTRUCTURA DE FILA --------------------
 def generar_base_data(cuadrilla, tipo_trabajo):
@@ -507,24 +517,22 @@ async def manejar_repeticion_fotos(update: Update, context: ContextTypes.DEFAULT
             await query.edit_message_text("¿Realizaste ATS/PETAR?", reply_markup=ats_keyboard)
 
         # --- ATS/PETAR ---
-        elif query.data == "repetir_foto_ats":
-            await query.edit_message_text("¿Realizaste ATS/PETAR?", reply_markup=ats_keyboard)
-
         elif query.data == "continuar_post_ats":
             user_data.setdefault(chat_id, {})["paso"] = "selfie_salida"
             logger.info(f"[DEBUG] Paso cambiado a 'selfie_salida' para chat {chat_id}")
 
-        # Enviamos el mensaje motivador y guardamos su ID
-            
+    # ✅ Editar mensaje anterior para confirmar
             await query.edit_message_text("✅ ¡Registro completado!")
+
+    # ✅ Enviar mensaje motivador nuevo (¡este es el importante!)
             mensaje = await context.bot.send_message(
                 chat_id=chat_id,
                 text="¡Excelente! 🎉 Ya estás listo para comenzar.\n\n💪 *Puedes iniciar tu jornada.* 💪",
-                parse_mode="Markdown"    
+                parse_mode="Markdown"
             )
 
-        # Guardamos el ID del mensaje para luego ignorar respuestas a él
-            user_data[chat_id]["msg_id_motivador"] = motivador.message_id
+    # ✅ Guardar el ID del mensaje motivador para ignorar futuras respuestas a él
+            user_data[chat_id]["msg_id_motivador"] = mensaje.message_id
 
         # --- SELFIE SALIDA ---
         elif query.data == "repetir_foto_salida":
