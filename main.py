@@ -20,6 +20,7 @@ from google.oauth2 import service_account
 from googleapiclient.discovery import build
 from openpyxl import load_workbook
 from googleapiclient.http import MediaIoBaseUpload, MediaIoBaseDownload
+from googleapiclient.http import MediaFileUpload
 from pytz import timezone
 
 # Zona horaria de Lima (UTC-5)
