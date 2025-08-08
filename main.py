@@ -26,8 +26,11 @@ from pytz import timezone
 # Zona horaria de Lima (UTC-5)
 LIMA_TZ = timezone("America/Lima")
 
+# Cargar variables de entorno
+load_dotenv()  # <--- Coloca esta línea aquí
+
 # -------------------- CONFIGURACIÓN --------------------
-BOT_TOKEN = "8105661196:AAG1-NNOUHp6_0joPdP5CXSOCPTHxkPLKmI"  # Token del bot
+BOT_TOKEN = os.getenv("BOT_TOKEN") # Token del bot
 NOMBRE_CARPETA_DRIVE = "ASISTENCIA_BOT"  # Carpeta principal
 DRIVE_ID = "0AOy_EhsaSY_HUk9PVA"  # ID de la unidad compartida
 ALLOWED_CHATS = [-1002640857147, -4718591093, -4831456255, -1002814603547, -1002838776671, -4951443286, -4870196969, -4824829490, -4979512409, -4903731585, -4910534813, -4845865029, -4643755320, -4860386920]  # Reemplaza con los IDs de tus grupos
@@ -877,3 +880,4 @@ if __name__ == "__main__":
     import nest_asyncio
     nest_asyncio.apply()
     asyncio.run(main())
+
