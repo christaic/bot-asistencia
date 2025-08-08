@@ -26,9 +26,6 @@ from pytz import timezone
 # Zona horaria de Lima (UTC-5)
 LIMA_TZ = timezone("America/Lima")
 
-# Cargar variables de entorno
-load_dotenv()  # <--- Coloca esta línea aquí
-
 # -------------------- CONFIGURACIÓN --------------------
 BOT_TOKEN = os.getenv("BOT_TOKEN") # Token del bot
 NOMBRE_CARPETA_DRIVE = "ASISTENCIA_BOT"  # Carpeta principal
@@ -880,4 +877,5 @@ if __name__ == "__main__":
     import nest_asyncio
     nest_asyncio.apply()
     asyncio.run(main())
+
 
