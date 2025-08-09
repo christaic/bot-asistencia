@@ -150,16 +150,15 @@ COL = {
     "MES":"A","FECHA":"B","CUADRILLA":"C","TIPO DE TRABAJO":"D","ATS/PETAR":"E",
     "HORA INGRESO":"F","HORA BREAK OUT":"G","HORA BREAK IN":"H","HORA SALIDA":"I",
 }
+
+MESES = ["Enero","Febrero","Marzo","Abril","Mayo","Junio","Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre"]
 # ===============================================================
 
 # -------------------- ESTRUCTURA DE FILA --------------------
 def generar_base_data(cuadrilla, tipo_trabajo):
     ahora = datetime.now(LIMA_TZ)
+    mes = MESES[ahora.month - 1]
     return {
-        MESES = ["Enero","Febrero","Marzo","Abril","Mayo","Junio","Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre"]
-        ahora = datetime.now(LIMA_TZ)
-        mes = MESES[ahora.month - 1]
-        # y en el dict:
         "MES": mes,
         "FECHA": str(ahora.strftime("%Y-%m-%d")),
         "CUADRILLA": str(cuadrilla),
@@ -1158,3 +1157,4 @@ async def main():
 if __name__ == "__main__":
     import asyncio
     asyncio.run(main())
+
