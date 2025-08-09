@@ -101,6 +101,28 @@ def get_services():
     sheets = build("sheets", "v4", credentials=creds)
     return drive, sheets
 
+# --- Google Sheets helpers ---
+
+def update_single_cell(spreadsheet_id: str, sheet_title: str, col_letter: str, row: int, value):
+    """
+    Actualiza UNA sola celda en formato A1 (p.ej. Registros!F2) usando USER_ENTERED.
+    No toca fórmulas de otras columnas.
+    """
+    range_name = f"{sheet_title}!{col_letter}{row}"
+    body = {"values": [[value]]}
+    try:
+        sheets_service.spreadsheets().values().update(
+            spreadsheetId=spreadsheet_id,
+            range=range_name,
+            valueInputOption="USER_ENTERED",
+            body=body
+        ).execute()
+        logger.info(f"[DEBUG] update_single_cell OK -> {range_name} = {value}")
+    except Exception as e:
+        logger.error(f"[ERROR] update_single_cell {range_name}: {e}")
+        raise
+
+
 # Inicializa servicios (¡debe ir antes de usar drive_service/sheets_service!)
 drive_service, sheets_service = get_services()
 
@@ -597,57 +619,48 @@ async def handle_tipo_trabajo(update: Update, context: ContextTypes.DEFAULT_TYPE
             pass
 
 async def foto_ingreso(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    chat_id = update.effective_chat.id
+    if not mensaje_es_para_bot(update, context):
+        return
+    if chat_id not in user_data or user_data[chat_id].get("paso") != 1:
+        return
+    if not await validar_contenido(update, "foto"):
+        return
+
+    # Verifica que tengamos hoja y fila
+    spreadsheet_id = user_data.get(chat_id, {}).get("spreadsheet_id")
+    row = user_data.get(chat_id, {}).get("row")
+    if not spreadsheet_id or not row:
+        logger.error(f"[ERROR] foto_ingreso: faltan spreadsheet_id/row en user_data[{chat_id}] = {user_data.get(chat_id)}")
+        await update.message.reply_text("❌ No hay registro activo. Usa /ingreso para iniciar.")
+        return
+
+    hora_ingreso = datetime.now(LIMA_TZ).strftime("%H:%M")
+    user_data[chat_id]["hora_ingreso"] = hora_ingreso
+
+    # Actualizamos SOLO la celda de HORA INGRESO en esa fila
+    loop = asyncio.get_running_loop()
     try:
-        if not mensaje_es_para_bot(update, context):
-            return
-
-        chat_id = update.effective_chat.id
-        ud = user_data.get(chat_id) or {}
-        if ud.get("paso") != 1:
-            return
-        if not await validar_contenido(update, "foto"):
-            return
-
-        # Hora de ingreso
-        hora_ingreso = datetime.now(LIMA_TZ).strftime("%H:%M")
-        ud["hora_ingreso"] = hora_ingreso
-
-        # Asegurar Spreadsheet + Hoja + Fila activa
-        spreadsheet_id = ud.get("spreadsheet_id")
-        if not spreadsheet_id:
-            spreadsheet_id = ensure_spreadsheet_for_group(update)
-            ensure_sheet_and_headers(spreadsheet_id)
-            ud["spreadsheet_id"] = spreadsheet_id
-
-        ensure_sheet_and_headers(spreadsheet_id)  # idempotente
-
-        row = ud.get("row")
-        if not row:
-            base = {
-                "CUADRILLA": ud.get("cuadrilla", ""),
-                "TIPO DE TRABAJO": ud.get("tipo", "")
-            }
-            row = append_base_row(spreadsheet_id, base)
-            ud["row"] = row
-
-        # Escribir solo la celda de HORA INGRESO (no toca nada más)
-        a1 = f"{COL['HORA INGRESO']}{row}"
-        update_single_cell(spreadsheet_id, a1, hora_ingreso)
-        user_data[chat_id] = ud
-        logger.info(f"[DEBUG] HORA INGRESO='{hora_ingreso}' escrita en {a1} (row={row}) sheet={spreadsheet_id}")
-
-        # Siguiente paso visual (botonera ATS); el paso lógico se cambia en handle_ats_petar cuando den "ats_si"
-        keyboard = [
-            [InlineKeyboardButton("🔄 Repetir Selfie", callback_data="repetir_foto_inicio")],
-            [InlineKeyboardButton("📝📋 Continuar con ATS/PETAR", callback_data="continuar_ats")],
-        ]
-        await update.message.reply_text(
-            "¿Es correcto el selfie de inicio?",
-            reply_markup=InlineKeyboardMarkup(keyboard)
+        await loop.run_in_executor(
+            None,
+            update_single_cell,
+            spreadsheet_id,
+            SHEET_TITLE,
+            COL["HORA INGRESO"],  # F normalmente
+            row,
+            hora_ingreso
         )
     except Exception as e:
         logger.error(f"[ERROR] foto_ingreso: {e}")
-        await update.message.reply_text("❌ Error al registrar la selfie de inicio. Intenta de nuevo.")
+        await update.message.reply_text("❌ No se pudo guardar la hora de ingreso.")
+        return
+
+    keyboard = [
+        [InlineKeyboardButton("🔄 Repetir Selfie", callback_data="repetir_foto_inicio")],
+        [InlineKeyboardButton("📝📋 Continuar con ATS/PETAR", callback_data="continuar_ats")],
+    ]
+    await update.message.reply_text("¿Es correcto el selfie de inicio?", reply_markup=InlineKeyboardMarkup(keyboard))
+
 
 # -------------------- MANEJAR REPETICIÓN DE FOTOS --------------------
 async def manejar_repeticion_fotos(update: Update, context: ContextTypes.DEFAULT_TYPE):
