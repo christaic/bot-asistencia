@@ -759,30 +759,37 @@ async def foto_ats(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         # Asegurar Spreadsheet + Hoja + Fila activa
         spreadsheet_id = ud.get("spreadsheet_id")
-        if not spreadsheet_id:
+        row = ud.get("row")
+
+        if not spreadsheet_id or not row:
+            # Fallback: si por alguna razón no existe, lo creamos
             spreadsheet_id = ensure_spreadsheet_for_group(update)
             ensure_sheet_and_headers(spreadsheet_id)
-            ud["spreadsheet_id"] = spreadsheet_id
-
-        ensure_sheet_and_headers(spreadsheet_id)  # idempotente
-
-        row = ud.get("row")
-        if not row:
             base = {
                 "CUADRILLA": ud.get("cuadrilla", ""),
                 "TIPO DE TRABAJO": ud.get("tipo", "")
             }
             row = append_base_row(spreadsheet_id, base)
+            ud["spreadsheet_id"] = spreadsheet_id
             ud["row"] = row
 
-        # Marcar ATS/PETAR = "Sí" (solo esa celda)
-        a1 = f"{COL['ATS/PETAR']}{row}"
-        update_single_cell(spreadsheet_id, a1, "Sí")
+        # Marcar ATS/PETAR = "Sí" (solo esa celda) SIN cambiar el paso (se cambia con continuar_post_ats)
+        loop = asyncio.get_running_loop()
+        await loop.run_in_executor(
+            None,
+            update_single_cell,
+            spreadsheet_id,
+            SHEET_TITLE,
+            COL["ATS/PETAR"],   # normalmente "E"
+            row,
+            "Sí"
+        )
+
         ud["ats_foto"] = "OK"
         user_data[chat_id] = ud
-        logger.info(f"[DEBUG] ATS/PETAR='Sí' escrita en {a1} (row={row}) sheet={spreadsheet_id}")
+        logger.info(f"[DEBUG] ATS/PETAR='Sí' escrito en fila={row}, sheet={spreadsheet_id}")
 
-        # Mantén paso=2 hasta que toquen "continuar_post_ats"
+        # Botonera para confirmar o repetir
         keyboard = [
             [InlineKeyboardButton("🔄 Repetir Foto ATS/PETAR", callback_data="repetir_foto_ats")],
             [InlineKeyboardButton("➡️ Continuar a jornada", callback_data="continuar_post_ats")],
@@ -791,11 +798,10 @@ async def foto_ats(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "¿Es correcta la foto del ATS/PETAR?",
             reply_markup=InlineKeyboardMarkup(keyboard)
         )
+
     except Exception as e:
         logger.error(f"[ERROR] foto_ats: {e}")
         await update.message.reply_text("❌ Error al registrar la foto del ATS/PETAR. Intenta de nuevo.")
-
-
 
 # -------------------- HANDLE ATS/PETAR --------------------
 async def handle_ats_petar(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -969,43 +975,64 @@ async def breakin(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 # -------------------- SALIDA --------------------
 
-async def salida(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def selfie_salida(update: Update, context: ContextTypes.DEFAULT_TYPE):
     try:
         if not mensaje_es_para_bot(update, context):
             return
 
         chat_id = update.effective_chat.id
+        ud = user_data.get(chat_id) or {}
 
-        # Recuperar lo que ya tenemos guardado
-        ud = user_data.setdefault(chat_id, {})
+        # Debe venir del paso de salida
+        if ud.get("paso") != "selfie_salida":
+            return
+        if not await validar_contenido(update, "foto"):
+            return
+
+        # Asegurar Spreadsheet + Hoja + Fila activa
         spreadsheet_id = ud.get("spreadsheet_id")
         row = ud.get("row")
-
-        # Asegurar que existe el spreadsheet del grupo y la hoja con headers
-        if not spreadsheet_id:
+        if not spreadsheet_id or not row:
+            # Fallback robusto por si algo faltara
             spreadsheet_id = ensure_spreadsheet_for_group(update)
             ensure_sheet_and_headers(spreadsheet_id)
-            ud["spreadsheet_id"] = spreadsheet_id
-            logger.info(f"[DEBUG] salida: asegurado spreadsheet_id={spreadsheet_id}")
-
-        # Si por algún motivo no hay fila activa, creamos una base
-        if not row:
             base = {
                 "CUADRILLA": ud.get("cuadrilla", ""),
-                "TIPO DE TRABAJO": ud.get("tipo", ""),
+                "TIPO DE TRABAJO": ud.get("tipo", "")
             }
             row = append_base_row(spreadsheet_id, base)
+            ud["spreadsheet_id"] = spreadsheet_id
             ud["row"] = row
-            logger.info(f"[DEBUG] salida: creada fila base row={row}")
 
-        # Solo cambiamos el paso, sin resetear user_data del chat
-        ud["paso"] = "selfie_salida"
-        logger.info(f"[DEBUG] salida: paso='selfie_salida' chat_id={chat_id}, row={row}")
+        # Escribir solo la hora de salida en la celda de esa fila
+        hora_salida = datetime.now(LIMA_TZ).strftime("%H:%M")
+        loop = asyncio.get_running_loop()
+        await loop.run_in_executor(
+            None,
+            update_single_cell,
+            spreadsheet_id,
+            SHEET_TITLE,
+            COL["HORA SALIDA"],  # normalmente "I"
+            row,
+            hora_salida
+        )
 
-        await update.message.reply_text("📸 Envía tu selfie de salida para finalizar la jornada.")
+        logger.info(f"[DEBUG] HORA SALIDA='{hora_salida}' escrita en fila={row}, sheet={spreadsheet_id}")
+
+        # Mantener el paso 'selfie_salida' hasta que confirmen/finalicen
+        keyboard = [
+            [InlineKeyboardButton("🔄 Repetir Selfie de Salida", callback_data="repetir_foto_salida")],
+            [InlineKeyboardButton("✅ Finalizar Jornada", callback_data="finalizar_salida")],
+        ]
+        await update.message.reply_text(
+            f"🚪 Hora de salida registrada a las *{hora_salida}*.\n\n¿Está correcta la selfie?",
+            parse_mode="Markdown",
+            reply_markup=InlineKeyboardMarkup(keyboard)
+        )
+
     except Exception as e:
-        logger.error(f"[ERROR] salida: {e}")
-        await update.message.reply_text("❌ Error preparando la salida. Intenta de nuevo.")
+        logger.error(f"[ERROR] selfie_salida: {e}")
+        await update.message.reply_text("❌ Error al registrar la selfie de salida. Intenta de nuevo.")
 
 
 
@@ -1178,3 +1205,4 @@ def main():
 
 if __name__ == "__main__":
     main()  # <-- SIN asyncio.run y sin nest_asyncio
+
