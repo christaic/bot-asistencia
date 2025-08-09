@@ -1131,9 +1131,9 @@ async def manejar_fotos(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 # -------------------- MAIN --------------------
-async def main():
+def main():
     app = ApplicationBuilder().token(BOT_TOKEN).build()
-    app.post_init = init_bot_info  # Inicializa el nombre del bot
+    app.post_init = init_bot_info  # ok si es async, PTB lo maneja internamente
 
     # --------- COMANDOS PRINCIPALES ---------
     app.add_handler(CommandHandler("start", start))
@@ -1144,7 +1144,7 @@ async def main():
 
     # --------- MENSAJES ---------
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, nombre_cuadrilla))
-    app.add_handler(MessageHandler(filters.PHOTO, manejar_fotos))  # Centralizamos todas las fotos
+    app.add_handler(MessageHandler(filters.PHOTO, manejar_fotos))
 
     # --------- CALLBACKS CUADRILLA ---------
     app.add_handler(CallbackQueryHandler(handle_nombre_cuadrilla, pattern="^(confirmar_nombre|corregir_nombre)$"))
@@ -1157,13 +1157,11 @@ async def main():
     # --------- CALLBACKS SALIDA ---------
     app.add_handler(CallbackQueryHandler(manejar_salida_callback, pattern="^(repetir_foto_salida|finalizar_salida)$"))
 
+    # --------- ERRORES ---------
     app.add_error_handler(log_error)
 
     print("🚀 Bot de Asistencia en ejecución...")
-    await app.run_polling()
+    app.run_polling()  # <-- SIN await
 
 if __name__ == "__main__":
-    import asyncio
-    asyncio.run(main())
-
-
+    main()  # <-- SIN asyncio.run y sin nest_asyncio
