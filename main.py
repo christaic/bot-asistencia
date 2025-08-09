@@ -975,65 +975,43 @@ async def breakin(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 # -------------------- SALIDA --------------------
 
-async def selfie_salida(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def salida(update: Update, context: ContextTypes.DEFAULT_TYPE):
     try:
         if not mensaje_es_para_bot(update, context):
             return
 
         chat_id = update.effective_chat.id
-        ud = user_data.get(chat_id) or {}
 
-        # Debe venir del paso de salida
-        if ud.get("paso") != "selfie_salida":
-            return
-        if not await validar_contenido(update, "foto"):
-            return
-
-        # Asegurar Spreadsheet + Hoja + Fila activa
+        # Recuperar lo que ya tenemos guardado
+        ud = user_data.setdefault(chat_id, {})
         spreadsheet_id = ud.get("spreadsheet_id")
         row = ud.get("row")
-        if not spreadsheet_id or not row:
-            # Fallback robusto por si algo faltara
+
+        # Asegurar que existe el spreadsheet del grupo y la hoja con headers
+        if not spreadsheet_id:
             spreadsheet_id = ensure_spreadsheet_for_group(update)
             ensure_sheet_and_headers(spreadsheet_id)
+            ud["spreadsheet_id"] = spreadsheet_id
+            logger.info(f"[DEBUG] salida: asegurado spreadsheet_id={spreadsheet_id}")
+
+        # Si por algún motivo no hay fila activa, creamos una base
+        if not row:
             base = {
                 "CUADRILLA": ud.get("cuadrilla", ""),
-                "TIPO DE TRABAJO": ud.get("tipo", "")
+                "TIPO DE TRABAJO": ud.get("tipo", ""),
             }
             row = append_base_row(spreadsheet_id, base)
-            ud["spreadsheet_id"] = spreadsheet_id
             ud["row"] = row
+            logger.info(f"[DEBUG] salida: creada fila base row={row}")
 
-        # Escribir solo la hora de salida en la celda de esa fila
-        hora_salida = datetime.now(LIMA_TZ).strftime("%H:%M")
-        loop = asyncio.get_running_loop()
-        await loop.run_in_executor(
-            None,
-            update_single_cell,
-            spreadsheet_id,
-            SHEET_TITLE,
-            COL["HORA SALIDA"],  # normalmente "I"
-            row,
-            hora_salida
-        )
+        # Solo cambiamos el paso, sin resetear user_data del chat
+        ud["paso"] = "selfie_salida"
+        logger.info(f"[DEBUG] salida: paso='selfie_salida' chat_id={chat_id}, row={row}")
 
-        logger.info(f"[DEBUG] HORA SALIDA='{hora_salida}' escrita en fila={row}, sheet={spreadsheet_id}")
-
-        # Mantener el paso 'selfie_salida' hasta que confirmen/finalicen
-        keyboard = [
-            [InlineKeyboardButton("🔄 Repetir Selfie de Salida", callback_data="repetir_foto_salida")],
-            [InlineKeyboardButton("✅ Finalizar Jornada", callback_data="finalizar_salida")],
-        ]
-        await update.message.reply_text(
-            f"🚪 Hora de salida registrada a las *{hora_salida}*.\n\n¿Está correcta la selfie?",
-            parse_mode="Markdown",
-            reply_markup=InlineKeyboardMarkup(keyboard)
-        )
-
+        await update.message.reply_text("📸 Envía tu selfie de salida para finalizar la jornada.")
     except Exception as e:
-        logger.error(f"[ERROR] selfie_salida: {e}")
-        await update.message.reply_text("❌ Error al registrar la selfie de salida. Intenta de nuevo.")
-
+        logger.error(f"[ERROR] salida: {e}")
+        await update.message.reply_text("❌ Error preparando la salida. Intenta de nuevo.")
 
 
 # -------------------- CALLBACK SALIDA --------------------
@@ -1075,9 +1053,7 @@ async def manejar_salida_callback(update: Update, context: ContextTypes.DEFAULT_
 
 async def selfie_salida(update: Update, context: ContextTypes.DEFAULT_TYPE):
     try:
-        if not mensaje_es_para_bot(update, context):
-            return
-
+        # ⚠️ No valides mensaje_es_para_bot aquí: la foto puede venir sin mención
         chat_id = update.effective_chat.id
         ud = user_data.get(chat_id) or {}
 
@@ -1089,20 +1065,17 @@ async def selfie_salida(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if not await validar_contenido(update, "foto"):
             return
 
-        hora_salida = datetime.now(LIMA_TZ).strftime("%H:%M")
-
         # Asegurar Spreadsheet + Hoja + Fila activa
         spreadsheet_id = ud.get("spreadsheet_id")
         if not spreadsheet_id:
             spreadsheet_id = ensure_spreadsheet_for_group(update)
             ensure_sheet_and_headers(spreadsheet_id)
             ud["spreadsheet_id"] = spreadsheet_id
-
-        ensure_sheet_and_headers(spreadsheet_id)  # idempotente
+        else:
+            ensure_sheet_and_headers(spreadsheet_id)  # idempotente
 
         row = ud.get("row")
         if not row:
-            # Si por alguna razón no hay fila activa, creamos una base
             base = {
                 "CUADRILLA": ud.get("cuadrilla", ""),
                 "TIPO DE TRABAJO": ud.get("tipo", "")
@@ -1111,12 +1084,20 @@ async def selfie_salida(update: Update, context: ContextTypes.DEFAULT_TYPE):
             ud["row"] = row
 
         # Escribir HORA SALIDA en la celda de la fila activa
-        a1 = f"{COL['HORA SALIDA']}{row}"   # usa tu mapeo COL
-        update_single_cell(spreadsheet_id, a1, hora_salida)
+        hora_salida = datetime.now(LIMA_TZ).strftime("%H:%M")
+        loop = asyncio.get_running_loop()
+        await loop.run_in_executor(
+            None,
+            update_single_cell,
+            spreadsheet_id,
+            SHEET_TITLE,
+            COL["HORA SALIDA"],  # p.ej. "I"
+            row,
+            hora_salida
+        )
         ud["hora_salida"] = hora_salida
         user_data[chat_id] = ud
-
-        logger.info(f"[DEBUG] HORA SALIDA '{hora_salida}' escrita en {a1} (row={row}) sheet={spreadsheet_id}")
+        logger.info(f"[DEBUG] HORA SALIDA '{hora_salida}' escrita en {COL['HORA SALIDA']}{row} (sheet={spreadsheet_id})")
 
         # Teclado de confirmación
         keyboard = [
@@ -1128,7 +1109,7 @@ async def selfie_salida(update: Update, context: ContextTypes.DEFAULT_TYPE):
             parse_mode="Markdown",
             reply_markup=InlineKeyboardMarkup(keyboard)
         )
-        # OJO: No cambiamos el paso aquí. Se cierra en manejar_salida_callback -> "finalizar_salida"
+        # No cambiamos el paso aquí; se cierra en manejar_salida_callback -> "finalizar_salida"
 
     except Exception as e:
         logger.error(f"[ERROR] selfie_salida: {e}")
@@ -1141,18 +1122,13 @@ async def manejar_fotos(update: Update, context: ContextTypes.DEFAULT_TYPE):
     try:
         chat_id = update.effective_chat.id
 
-        # Ignorar si es respuesta al motivador (salvo comandos)
+        # ⛔ Ignorar si es respuesta al mensaje motivador (las fotos no tienen texto/comando)
         if update.message.reply_to_message:
-            reply_id = update.message.reply_to_message.message_id
-            texto = (update.message.text or "")
-            if reply_id == user_data.get(chat_id, {}).get("msg_id_motivador"):
-                if not texto.startswith(("/breakout", "/breakin", "/salida")):
-                    logger.info(f"[DEBUG] Ignorado: respuesta al motivador. chat_id={chat_id}")
-                    return
+            if update.message.reply_to_message.message_id == user_data.get(chat_id, {}).get("msg_id_motivador"):
+                logger.info(f"[DEBUG] Ignorado: respuesta al motivador. chat_id={chat_id}")
+                return
 
-        if not mensaje_es_para_bot(update, context):
-            return
-
+        # 📸 En fotos NO verifiques mensaje_es_para_bot (no hay /comando ni mención)
         paso = user_data.get(chat_id, {}).get("paso")
         logger.info(f"[DEBUG] manejar_fotos paso={paso} chat_id={chat_id}")
 
@@ -1168,7 +1144,6 @@ async def manejar_fotos(update: Update, context: ContextTypes.DEFAULT_TYPE):
             )
     except Exception as e:
         logger.error(f"[ERROR] manejar_fotos: {e}")
-
 
 # -------------------- MAIN --------------------
 def main():
@@ -1205,4 +1180,5 @@ def main():
 
 if __name__ == "__main__":
     main()  # <-- SIN asyncio.run y sin nest_asyncio
+
 
