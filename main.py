@@ -103,6 +103,20 @@ def get_services():
 
 # --- Google Sheets helpers ---
 
+# --- Helpers de Google Sheets (colócalos junto a tus otras funciones de Sheets) ---
+
+def set_cell_value(spreadsheet_id: str, sheet_title: str, a1: str, value):
+    """
+    Escribe un solo valor en la celda A1 indicada (por ejemplo 'F12') en la hoja 'sheet_title'.
+    """
+    body = {"values": [[value]]}
+    sheets_service.spreadsheets().values().update(
+        spreadsheetId=spreadsheet_id,
+        range=f"{sheet_title}!{a1}",
+        valueInputOption="USER_ENTERED",
+        body=body
+    ).execute()
+
 def update_single_cell(spreadsheet_id: str, sheet_title: str, col_letter: str, row: int, value):
     """
     Actualiza UNA sola celda en formato A1 (p.ej. Registros!F2) usando USER_ENTERED.
@@ -1180,5 +1194,6 @@ def main():
 
 if __name__ == "__main__":
     main()  # <-- SIN asyncio.run y sin nest_asyncio
+
 
 
