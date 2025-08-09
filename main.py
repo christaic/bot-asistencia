@@ -84,16 +84,24 @@ logger = logging.getLogger(__name__)
 async def log_error(update: object, context: ContextTypes.DEFAULT_TYPE):
     logger.exception("[UNHANDLED] Excepción no controlada", exc_info=context.error)
 
-# -------------------- GOOGLE DRIVE SERVICE --------------------
+# --------- GOOGLE APIs (Drive + Sheets) ----------
+# Asegúrate que CREDENTIALS_JSON ya esté definido arriba
+# scopes: Drive (lectura/escritura) + Sheets (lectura/escritura)
+SCOPES = [
+    "https://www.googleapis.com/auth/drive",
+    "https://www.googleapis.com/auth/spreadsheets",
+]
 
-def get_sheets_service():
-    creds_dict = json.loads(CREDENTIALS_JSON)
+def get_services():
+    creds_info = json.loads(CREDENTIALS_JSON)
     creds = service_account.Credentials.from_service_account_info(
-        creds_dict,
-        scopes=["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive"]
+        creds_info, scopes=SCOPES
     )
-    return build("sheets", "v4", credentials=creds)
+    drive = build("drive", "v3", credentials=creds)
+    sheets = build("sheets", "v4", credentials=creds)
+    return drive, sheets
 
+# Inicializa servicios (¡debe ir antes de usar drive_service/sheets_service!)
 drive_service, sheets_service = get_services()
 
 def gs_set_cell(spreadsheet_id: str, row: int, header: str, value):
@@ -1157,4 +1165,5 @@ async def main():
 if __name__ == "__main__":
     import asyncio
     asyncio.run(main())
+
 
